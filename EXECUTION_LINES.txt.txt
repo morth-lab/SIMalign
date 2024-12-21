@@ -1,0 +1,3 @@
+python SIMAlign_parser_v2.py --QUERY AF-A0A1I2CZY8-F1-model_v4.pdb
+python SIMAlign_parser_v2.py --QUERY AF-A0A1I2CZY8-F1-model_v4.pdb --HOMOLOGY_SEARCH_METHOD BLASTp
+python SIMAlign_parser_v2.py --QUERY AF-A0A1I2CZY8-F1-model_v4.pdb --TEMPLATES sRO10_homologs\hcb77066.cif sRO10_homologs\oyx51963.cif --HOMOLOGY_SEARCH_METHOD user_specified
