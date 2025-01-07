@@ -21,8 +21,13 @@ SIMalign is a Python tool designed for protein structure alignment and analysis.
 Clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/morth-lab/simalign.git
-cd simalign
+git clone https://github.com/morth-lab/SIMalign.git
+```
+
+Navigate to the root of the repositoriy by:
+
+```bash
+cd SIMalign
 ```
 
 ### 2. Set Up the Conda Environment
@@ -53,8 +58,10 @@ This step will also download the `findSurfaceResidues.py` script into the `exter
 Run SIMalign using the following command:
 
 ```bash
-python -m simalign.main --QUERY query.pdb
+python -m SIMalign.main --QUERY query.pdb
 ```
+
+Where you substitute query.pdb with your input `.pdb` or `.cif` file.
 
 ### Available Arguments
 
@@ -67,6 +74,7 @@ python -m simalign.main --QUERY query.pdb
 | `--MAX_RMSD`             | Maximum allowed RMSD for alignments. Default: `5`.                                                          |
 | `--FOLDSEEK_DATABASES`   | Databases for Foldseek. Options: `afdb50`, `afdb_swissprot`, `afdb_proteome`, `pdb100`. Default: `afdb50`.    |
 | `--RESULT_DIR`           | Path to the directory for saving results. Default: `./<job_key>`.                                           |
+| `--BLOSUM`               | Blosum
 
 ---
 
@@ -107,7 +115,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 
 
-<img src="SIMalign.png" alt="Alt Text" width="200">
+<img src="logo.png" alt="Alt Text" width="200">
 
 ### [Publication](https://services.healthtech.dtu.dk/services/SIMAlign-1.0/)
 

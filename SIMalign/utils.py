@@ -39,11 +39,14 @@ def create_output_dirs(result_dir):
     """Create output directories for results and temporary files."""
     try:
         if not os.path.exists(result_dir):
-            os.makedirs(os.path.join(result_dir, 'tmp'), exist_ok=True)
-            os.makedirs(os.path.join(result_dir, 'results'), exist_ok=True)
+            tmp_dir = os.path.join(result_dir, 'tmp')
+            result_dir_new = os.path.join(result_dir, 'results')
+            os.makedirs(tmp_dir, exist_ok=True)
+            os.makedirs(result_dir_new, exist_ok=True)
     except OSError as e:
         print(f"ERROR: Could not create directories in {result_dir}: {e}")
         sys.exit(1)
+    return tmp_dir, result_dir_new
 
 
 ## Core functions
@@ -147,7 +150,7 @@ def dist_points(coord1, coord2):
 
 # Foldseek functions
 
-def extract_highest_results(tresshold, number_of_templates, tmp_folder, result_folder, foldseek_mode):
+def extract_highest_results(tresshold, number_of_templates, tmp_dir, result_dir, foldseek_mode):
     """
     Extract highest results from foldseek
 
@@ -158,8 +161,8 @@ def extract_highest_results(tresshold, number_of_templates, tmp_folder, result_f
     :param foldseek_mode: foldseek mode (tmalign or 3diaa)
     :return: list of structure_files with downloaded AF structures
     """
-    for file in os.listdir(tmp_folder):
-        m8file = os.path.join(tmp_folder,file)
+    for file in os.listdir(tmp_dir):
+        m8file = os.path.join(tmp_dir,file)
     with open(m8file,"r") as infile:
         lines = infile.readlines()
         lines = lines[:number_of_templates]
@@ -171,7 +174,7 @@ def extract_highest_results(tresshold, number_of_templates, tmp_folder, result_f
             if (float(score) > tresshold and foldseek_mode == "tmalign") or (float(score) < tresshold and foldseek_mode == "3diaa"):
                 file_location = None
                 if name.startswith("AF"):
-                    file_location = download_AF_structure(name,result_folder)
+                    file_location = download_AF_structure(name,result_dir)
                     type = os.path.basename(file_location).split(".")[-1]
                 else:
                     name = name.split("-")[0]
@@ -183,7 +186,7 @@ def extract_highest_results(tresshold, number_of_templates, tmp_folder, result_f
     return template_files
 
 
-def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, foldseek_threshold, numb_templates):
+def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tmp_dir, foldseek_threshold, numb_templates):
     databases = ""
     for database in foldseek_databases:
         databases += f' -F "database[]={database}"'
@@ -206,12 +209,10 @@ def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, fo
 
     # download foldseek result
     url = f"https://search.foldseek.com/api/result/download/{ticket}"
-    tmp_folder = os.path.join(result_dir,"tmp")
-    result_folder = os.path.join(result_dir,"results")
-    os.system(f"wget {url} -O {tmp_folder}.tar.gz")
-    os.system(f"tar -xzvf {tmp_folder}.tar.gz -C {tmp_folder}")
-    os.system(f"rm {tmp_folder}.tar.gz")
-    return extract_highest_results(float(foldseek_threshold), int(numb_templates), tmp_folder, result_folder, foldseek_mode)   
+    os.system(f"wget {url} -O {tmp_dir}.tar.gz")
+    os.system(f"tar -xzvf {tmp_dir}.tar.gz -C {tmp_dir}")
+    os.system(f"rm {tmp_dir}.tar.gz")
+    return extract_highest_results(float(foldseek_threshold), int(numb_templates), tmp_dir, result_dir, foldseek_mode)   
 
 # PyMol functions
 
@@ -228,7 +229,7 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored):
             try:
                 cmd.fetch(name)
                 print(f"\tFetched: {name}")
-                Structure(name,cmd,stored).test_struc_format()
+                Structure(name,cmd,stored).validate_structure_format()
             except Exception as e:
                 print(f"Fetch ERROR: {name} could not be fetched to PyMOL. Error: {e}")
 
@@ -249,7 +250,7 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored):
                 # Load the structure in PyMOL using the normalized path and name
                 cmd.load(normalized_path, name)
                 print(f"\tLoaded: {name} from {normalized_path}")
-                Structure(name,cmd,stored).test_struc_format()
+                Structure(name,cmd,stored).validate_structure_format()
             except Exception as e:
                 print(f"Import ERROR: {normalized_path} could not be loaded in PyMOL. Error: {e}")
 
@@ -347,9 +348,8 @@ def update_alignment_in_pymol(structures, align, cmd):
     """
     Update alignment in pymol
     """
-    print("før",time.time())
+
     align = process_nested_dicts(align,[struc.name for struc in structures])
-    print("efter",time.time())
     # Updating the align structure so it fits pymol
     new_align = []
     for pos in align:
@@ -357,9 +357,8 @@ def update_alignment_in_pymol(structures, align, cmd):
         for k,v in pos.items():
             tmp.append((k,int(v+1)))
         new_align.append(tmp)
-    print(new_align)
     cmd.set_raw_alignment("aln",new_align)
-    print(time.time())
+
 
 
 # Functions for hotspot finding
@@ -385,29 +384,7 @@ def resi_to_index(residue,align_seq,atomsCA):
                 return index
             count += 1
 
-# def not_bigger_AA(ref_AA,target_AA):
-#     """
-#     Check if target AA is not bigger than ref AA
-#     :param target_AA: target AA
-#     :param ref_AA: ref AA
-#     :return: True if target AA is bigger than ref AA, False otherwise
-#     """
-#     if ref_AA == target_AA:
-#         return True
-#     elif target_AA == "G":
-#         return True
-#     elif target_AA == "A" and ref_AA not in {"G","P"}:
-#         return True
-#     elif target_AA == "V" and ref_AA == "I":
-#         return True
-#     elif target_AA == "F" and ref_AA == "Y":
-#         return True
-#     elif target_AA == "L" and ref_AA in {"F","Y"}:
-#         return True
-#     elif target_AA == "S" and ref_AA in {"C","T"}:
-#         return True
-#     else:
-#         return False
+
 def bigger_AA(ref_AA,target_AA,if_refAA_and_targetAA_are_the_same=False):
     """
     Check if target AA is bigger than ref AA
@@ -445,7 +422,7 @@ def median_40_percent(data):
 
 
 
-def get_core(structures):
+def get_core(structures, cmd):
     """
     Get conserved core region
     :param structures: list of structures
@@ -475,7 +452,7 @@ def get_core(structures):
     sys.path.append(external_dir)
 
     try:
-        from findSurfaceResidues import findSurfaceResidues
+        from external.findSurfaceResidues import findSurfaceResidues
         # Use functions or logic from the script
     except ImportError:
         raise ImportError("Could not import findSurfaceResidues. Ensure it is downloaded.")
@@ -510,7 +487,7 @@ def get_neighborAA(structures, align, cmd):
     :param align: alignment
     :return: list of close AA
     """
-    core = get_core(structures)
+    core = get_core(structures, cmd)
     query_atoms = cmd.get_model(structures[0].side_chains).atom
     query_kd = cKDTree([atom.coord for atom in query_atoms])
 
@@ -649,3 +626,125 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, mode=
                     ])
                 resi_in_hotspot_list.update(residue_to_mutate)
     return hotspot_list
+
+
+def save_hotspot(hotspot_list, output_dir, structures, mode):
+    doc_name=os.path.join(output_dir,"hotspots_mode_"+str(mode)+".html")
+    doc=open(doc_name,"w")
+    
+    doc.write("------------------------------------------------------------------------------")
+    if mode == 1:
+        doc.write("<h1>Printing possible single mutations in "+structures[0].name+"</h1>")
+    elif mode == 2:
+        doc.write("<h1>Printing possible double mutations in "+structures[0].name+"</h1>")
+    doc.write("------------------------------------------------------------------------------")
+    doc.write("<h1>Legend</h1>")
+    doc.write("<p style='color:rgb(255,9,0);'>Red : Mutations into smaller AAs</p>")
+    doc.write("<p style='color:rgb(0,100,0);'>Green: Mutations into larger AAs</p>")
+    doc.write("<p style='color:rgb(214,178,32);'>Yellow: Undefined</p>")
+    doc.write("------------------------------------------------------------------------------")
+    printed = set()
+    for hotspot in hotspot_list:
+        for i, mutation_list in enumerate(hotspot[1]):
+            if not isinstance(mutation_list[0], str):
+                wt_list = hotspot[0]
+                non_comparable = hotspot[2][i]
+                
+                all_lower = False
+                all_higher = False
+                wt_print = ""
+                mu_print = ""
+                wt_list_sorted=sorted(wt_list)
+                mutation_list_sorted=sorted(mutation_list, key=lambda x: (x[0] if isinstance(x[0], int) else float('inf')))
+
+                for wt, mu in zip(wt_list_sorted, mutation_list_sorted):
+                    if bigger_AA(wt[1], mu[1], if_refAA_and_targetAA_are_the_same=True):
+                        all_lower = True
+                    elif bigger_AA(wt[1], mu[1]):
+                        all_higher = True
+                    wt_print += wt[1]+str(wt[0])+" "
+                    mu_print += mu[1]+" "
+                if not str(wt_print)+mu[1] in printed:
+                    printed.add(str(wt_print)+mu[1])
+                    newlist=[]
+                    for j, x in enumerate(mutation_list_sorted): 
+                        if x[1] == mu[1]:
+                            newlist.append (structures[j+1].name)
+                    if all_lower:
+                        text="<p style='color:rgb(255,9,0);'>"
+                        #doc.write("<p style='color:rgb(255,9,0);'>"+str(wt_print)+"-> "+str(mu_print)+" Non-comparable: "+", ".join([str(x) for x in non_comparable]) + "; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
+                    elif all_higher:
+                        text="<p style='color:rgb(0,100,0);'>"
+                        #doc.write("<p style='color:rgb(0,255,4);'>"+str(wt_print)+" -> "+str(mu_print)+" Non-comparable"+str(len(non_comparable))+": "+", ".join([str(x) for x in non_comparable])+"; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
+                    else:
+                        text="<p style='color:rgb(214,178,32);'>"
+                        #doc.write("<p style='color:rgb(214,178,32);'>"+str(wt_print)+" -> "+str(mu_print)+" Non-comparable"+str(len(non_comparable))+": "+", ".join([str(x) for x in non_comparable])+"; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
+                    text+=str(wt_print)+" -> "+str(mu_print)
+                    if len(non_comparable)>0:
+                        text+="; Non-comparable: "+", ".join([str(x) for x in non_comparable])
+                    text+="; Structures with given mutation: " + ", ".join([str(x) for x in newlist]) + "</p>"
+                    
+                    doc.write(text)
+    doc.write("------------------------------------------------------------------------------")
+    doc.close()
+
+# pymol formatting functions
+
+def color_by_number(number):
+    """
+    Gradient from red to white
+    number 0: red
+    number 1: white
+    """
+    if number >= 1:
+        return [1,1,1]
+    return [0.8+(number/5),number,number]
+
+def color_structure(structure, cmd):
+    """
+    Coloring by similarity in pymol
+    """
+    score = structure.score_list
+    for i, atom in enumerate(structure.model.atom):
+        cmd.set_color(str(round(score[i],2)), color_by_number(score[i]))
+        cmd.color(str(round(score[i],2)), f"resi {atom.resi} and {structure.first_chain}")
+
+
+def select_hotspots_in_pymol(hotspot_list, structures, cmd):
+    count = 1
+    for hotspot in hotspot_list:
+        selection_string = f"({structures[0].first_chain} and ("
+        resi_lists = [list(hotspot[0])]
+        resi_lists.extend(hotspot[1])
+        non_comparable = set()
+        for non_comp in hotspot[2]:
+            non_comparable.update(non_comp)
+        if non_comparable != set():
+            for non_comp in list(non_comparable):
+                selection_string += f"resi {non_comp} or "
+            selection_string = selection_string[:-4]+")) or ("
+        else:
+            selection_string = "("
+        for i, resi_list in enumerate(resi_lists):
+            if not isinstance(resi_list[0], str):
+                selection_string += f"{structures[i].first_chain} and ("
+                for resi in resi_list:
+                    selection_string += f"resi {resi[0]} or "
+                selection_string = selection_string[:-4]+")) or ("
+        selection_string = selection_string[:-5]
+        cmd.select(f"hotspot_{str(count)}", selection_string)
+        count += 1
+            
+
+
+
+def format_pymol(structures, hotspot_list, cmd):
+    cmd.hide("everything","all")
+    for structure in structures:
+        cmd.show("cartoon",structure.first_chain)
+        print(f"\tColoring {structure.name}")
+        color_structure(structure,cmd)
+    cmd.hide("cgo", "aln")
+    cmd.set("seq_view_label_mode", "1")
+    select_hotspots_in_pymol(hotspot_list, structures, cmd)
+    

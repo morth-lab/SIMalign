@@ -143,7 +143,7 @@ def main():
         sys.exit(1)
 
 
-    create_output_dirs(args.RESULT_DIR)
+
 
     # Print settings
     print("Running SIMalign with the following settings:")
@@ -162,6 +162,8 @@ def main():
           f"BLOSUM = {args.BLOSUM}",
           sep="\n")
 
+    tmp_dir, result_dir = create_output_dirs(args.RESULT_DIR)
+
     # Run SIMalign
     SIMalign(query=args.QUERY,
              templates=args.TEMPLATES,
@@ -174,7 +176,8 @@ def main():
              foldseek_threshold=args.FOLDSEEK_THRESHOLD,
              numb_templates=args.NUMB_TEMPLATES,
              sequence_identity=args.SEQUENCE_IDENTITY,
-             result_dir=args.RESULT_DIR,
+             result_dir=result_dir,
+             tmp_dir=tmp_dir,
              BLOSUM=args.BLOSUM)
 
 if __name__ == "__main__":
