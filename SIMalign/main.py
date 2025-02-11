@@ -18,13 +18,20 @@ def main():
         required=True,
         help="Required argument! Path to the query protein structure file (.pdb or .cif)."
     )
+    # parser.add_argument(
+    #     "-t",
+    #     "--TEMPLATES",
+    #     nargs="+",
+    #     default=None,
+    #     help="List of paths to files used as templates for the query file (only required for user-specified homology search method)."
+    # )  
     parser.add_argument(
         "-t",
         "--TEMPLATES",
-        nargs="+",
+        type=str,
         default=None,
-        help="List of paths to files used as templates for the query file (only required for user-specified homology search method)."
-    )    
+        help="Folder with files used as templates for the query file (only required for user-specified homology search method)."
+    ) 
     parser.add_argument(
         "-j",
         "--JOB_KEY",
@@ -92,12 +99,40 @@ def main():
         help="Min. sequence identity (between 0-1) for BLASTp."
     ) 
     parser.add_argument(
+        "-scov",
+        "--SEQUENCE_COV",
+        type=float,
+        default=0.6,
+        help="Min. sequence coverage (between 0-1) for BLASTp."
+    ) 
+    parser.add_argument(
+        "-e",
+        "--E_VALUE",
+        type=float,
+        default=0.001,
+        help="E-value threshold for BLASTp."
+    )
+    parser.add_argument(
+        "-rt",
+        "--REDUNDANCY_THRESHOLD",
+        type=float,
+        default=0.9,
+        help="Redundancy threshold for removing similar sequences from the BLASTp MSA."
+    )
+    parser.add_argument(
         "-R",
         "--RESULT_DIR",
         type=str,
         default=os.path.join(".", f"{job_key}"),
         help="The path to the result folder."
     )
+    parser.add_argument(
+        "-tmp",
+        "--TMP_DIR",
+        type=str,
+        default=os.path.join(".", "tmp"),
+        help="The path to the tmp folder."
+    )   
     parser.add_argument(
         "-b",
         "--BLOSUM",
@@ -113,14 +148,14 @@ def main():
         print("ERROR: The query file must be of either .pdb or .cif format.")
         sys.exit(1)
 
-    if args.HOMOLOGY_SEARCH_METHOD == "user_specified":
-        if args.TEMPLATES is None or len(args.TEMPLATES) < 2:
-            print("ERROR: Please provide 2 or more template files when using user-specified homology search method.")
-            sys.exit(1)
-        for temp_file in args.TEMPLATES:
-            if not validate_structure_file(temp_file):
-                print(f"ERROR: {temp_file} must be of either .pdb or .cif format.")
-                sys.exit(1)
+    # if args.HOMOLOGY_SEARCH_METHOD == "user_specified":
+    #     if args.TEMPLATES is None or len(args.TEMPLATES) < 2:
+    #         print("ERROR: Please provide 2 or more template files when using user-specified homology search method.")
+    #         sys.exit(1)
+    #     for temp_file in args.TEMPLATES:
+    #         if not validate_structure_file(temp_file):
+    #             print(f"ERROR: {temp_file} must be of either .pdb or .cif format.")
+    #             sys.exit(1)
 
     if args.MAX_DISTANCE <= 0:
         print("ERROR: The maximum sequence distance parameter (MAX_DISTANCE) must be greater than 0.")
@@ -148,8 +183,10 @@ def main():
     # Print settings
     print("Running SIMalign with the following settings:")
     print(f"Query = {args.QUERY},",
-          f"templates = {args.TEMPLATES},",
           f"job_key = {args.JOB_KEY},",
+          f"result_dir = {args.RESULT_DIR}",
+          f"tmp_dir = {args.TMP_DIR}",
+          f"templates = {args.TEMPLATES},",
           f"homology_search_method = {args.HOMOLOGY_SEARCH_METHOD},",
           f"max_dist = {args.MAX_DISTANCE},",
           f"max_rmsd = {args.MAX_RMSD},",
@@ -158,7 +195,8 @@ def main():
           f"foldseek_threshold = {args.FOLDSEEK_THRESHOLD},",
           f"numb_templates = {args.NUMB_TEMPLATES},",
           f"sequence_identity = {args.SEQUENCE_IDENTITY},",
-          f"result_dir = {args.RESULT_DIR}",
+          f"sequence_cov = {args.SEQUENCE_COV},",
+          f"redundancy_threshold = {args.REDUNDANCY_THRESHOLD},",
           f"BLOSUM = {args.BLOSUM}",
           sep="\n")
 
@@ -166,8 +204,10 @@ def main():
 
     # Run SIMalign
     SIMalign(query=args.QUERY,
-             templates=args.TEMPLATES,
              job_key=args.JOB_KEY,
+             result_dir=result_dir,
+             tmp_dir=tmp_dir,
+             templates=args.TEMPLATES,
              homology_search_method=args.HOMOLOGY_SEARCH_METHOD,
              max_dist=args.MAX_DISTANCE,
              max_rmsd=args.MAX_RMSD,
@@ -176,8 +216,8 @@ def main():
              foldseek_threshold=args.FOLDSEEK_THRESHOLD,
              numb_templates=args.NUMB_TEMPLATES,
              sequence_identity=args.SEQUENCE_IDENTITY,
-             result_dir=result_dir,
-             tmp_dir=tmp_dir,
+             sequence_cov=args.SEQUENCE_COV,
+             redundancy_threshold=args.REDUNDANCY_THRESHOLD,
              BLOSUM=args.BLOSUM)
 
 if __name__ == "__main__":

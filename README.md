@@ -68,13 +68,15 @@ Where you substitute query.pdb with your input `.pdb` or `.cif` file.
 | Argument                 | Description                                                                                                  |
 |--------------------------|--------------------------------------------------------------------------------------------------------------|
 | `--QUERY`                | Required. Path to the query protein structure file (`.pdb` or `.cif`).                                       |
-| `--TEMPLATES`            | Optional. List of paths to template files (required for `user_specified` homology search method).             |
+| `--TEMPLATES`            | Optional. Folder with files used as templates for the query file (required for `user_specified` homology search method).             |
 | `--HOMOLOGY_SEARCH_METHOD` | Method for homology search. Options: `foldseek`, `user_specified`, `BLASTp`. Default: `foldseek`.             |
 | `--MAX_DISTANCE`         | Threshold distance for gap recognition. Default: `6`.                                                       |
 | `--MAX_RMSD`             | Maximum allowed RMSD for alignments. Default: `5`.                                                          |
 | `--FOLDSEEK_DATABASES`   | Databases for Foldseek. Options: `afdb50`, `afdb_swissprot`, `afdb_proteome`, `pdb100`. Default: `afdb50`.    |
 | `--RESULT_DIR`           | Path to the directory for saving results. Default: `./<job_key>`.                                           |
 | `--BLOSUM`               | Blosum
+
+Folder with files used as templates for the query file (only required for user-specified homology search method).
 
 ---
 

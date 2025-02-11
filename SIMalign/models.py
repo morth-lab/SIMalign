@@ -25,7 +25,7 @@ class Structure:
     
     def get_fasta(self):
         """Get fasta sequence from the structure."""
-        lines = self.cmd.get_fastastr(self.name).split("\n")
+        lines = self.cmd.get_fastastr(self.first_chain).split("\n")
         fasta = ""
         for line in lines[1:]:
             if line.startswith(">"):

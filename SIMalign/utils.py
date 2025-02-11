@@ -14,6 +14,13 @@ from itertools import combinations
 from collections import defaultdict
 from statistics import median
 
+from Bio.Blast import NCBIWWW
+from Bio.Blast import NCBIXML
+from Bio.Align.Applications import ClustalOmegaCommandline
+
+from Bio.Align.Applications import ClustalwCommandline
+from Bio import AlignIO
+
 ## Main functions
 
 def encrypt_key():
@@ -214,6 +221,166 @@ def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tm
     os.system(f"rm {tmp_dir}.tar.gz")
     return extract_highest_results(float(foldseek_threshold), int(numb_templates), tmp_dir, result_dir, foldseek_mode)   
 
+
+# BLASTp functions
+
+
+
+def run_cd_hit(input_file, output_file, threshold=0.9):
+    """
+    Run the CD-HIT tool from within Python.
+
+    Parameters:
+    - input_file (str): Path to the input FASTA file.
+    - output_file (str): Path to the output FASTA file.
+    - threshold (float): Sequence identity threshold (default is 0.9).
+    """
+    try:
+        # Build the cd-hit command
+        command = [
+            "cd-hit",
+            "-i", input_file,
+            "-o", output_file,
+            "-c", str(threshold)
+        ]
+
+        # Run the command and capture the output
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+
+        print("CD-HIT completed successfully.")
+        print("STDOUT:", result.stdout)
+        print("STDERR:", result.stderr)
+        return output_file
+
+    except subprocess.CalledProcessError as e:
+        print("Error running CD-HIT:", e)
+        print("STDOUT:", e.stdout)
+        print("STDERR:", e.stderr)
+        return None
+
+
+
+def blastp(query_sequence, output_fasta, database="nr", e_value=0.001, seq_identity=0.6, seq_coverage=0.6):
+    """
+    Perform a BLASTp search using Biopython's NCBIWWW module.
+
+    Parameters:
+        query_sequence (str): Protein sequence to search.
+        database (str): Database to search against (default: "nr").
+        e_value (float): E-value threshold (default: 0.001).
+
+    Returns:
+        list: List of tuples containing sequence IDs and sequences with identity >= 0.6 and coverage >= 0.6.
+    """
+    try:
+        print("Submitting BLASTp search...")
+        # Perform BLAST search
+        result_handle = NCBIWWW.qblast(
+            program="blastp",
+            database=database,
+            sequence=query_sequence,
+            expect=e_value,
+            format_type="XML"
+        )
+
+        print("Parsing BLAST results...")
+        blast_records = NCBIXML.parse(result_handle)
+
+        filtered_results = []
+
+        # Extract sequences and IDs with identity >= 0.6 and coverage >= 0.6
+        for record in blast_records:
+            for alignment in record.alignments:
+                for hsp in alignment.hsps:
+                    identity = hsp.identities / hsp.align_length
+                    coverage = hsp.align_length / len(query_sequence)
+                    if identity >= seq_identity and coverage >= seq_coverage:
+                        filtered_results.append((alignment.accession, hsp.sbjct))
+
+        with open(output_fasta, "w") as output_handle:
+            for seq_id, seq in filtered_results:
+                output_handle.write(f">{seq_id}\n{seq}\n")
+        # Check the result
+        if os.path.exists(output_fasta):
+            print(f"BLAST completed. Results saved to {output_fasta}.")
+            return output_fasta
+        else:
+            raise Exception("Clustal Omega did not produce an output file.")
+
+    except Exception as e:
+        print("Error during BLASTp search:", str(e))
+        return None
+
+def create_msa(input_fasta, output_aligment):
+    """
+    Create a multiple sequence alignment (MSA) using Clustal Omega.
+
+    Parameters:
+        sequences (list): List of tuples containing sequence IDs and sequences.
+        output_file (str): Path to save the resulting MSA file (default: "msa_result.aln").
+
+    Returns:
+        str: Path to the MSA file.
+    """
+    try:
+        # Run Clustal Omega
+        clustalomega_cline = ClustalOmegaCommandline(
+            infile=input_fasta, 
+            outfile=output_aligment, 
+            verbose=True, 
+            auto=True
+        )
+        print("Running Clustal Omega for MSA...")
+        stdout, stderr = clustalomega_cline()
+
+        # Check the result
+        if os.path.exists(output_aligment):
+            print(f"MSA completed. Results saved to {output_aligment}.")
+            return output_aligment
+        else:
+            raise Exception("Clustal Omega did not produce an output file.")
+
+    except Exception as e:
+        print("Error during MSA creation:", str(e))
+        return None
+
+def remove_redundancy_from_msa(msa_file, output_file="non_redundant_msa.aln", threshold=0.9):
+    """
+    Remove redundancy from an MSA based on sequence similarity.
+
+    Parameters:
+        msa_file (str): Path to the MSA file.
+        output_file (str): Path to save the non-redundant MSA file.
+        threshold (float): Similarity threshold above which sequences are considered redundant (default: 0.9).
+
+    Returns:
+        str: Path to the non-redundant MSA file.
+    """
+    try:
+        print(f"Loading MSA from {msa_file}...")
+        alignment = AlignIO.read(msa_file, "clustal")
+
+        non_redundant_sequences = []
+        sequence_set = set()
+
+        for record in alignment:
+            sequence = str(record.seq)
+            if not any(sum(a == b for a, b in zip(sequence, ref_seq)) / len(sequence) > threshold \
+                       for ref_seq in sequence_set):
+                non_redundant_sequences.append(record)
+                sequence_set.add(sequence)
+
+        print("Writing non-redundant MSA...")
+        AlignIO.write(non_redundant_sequences, output_file, "clustal")
+
+        print(f"Non-redundant MSA saved to {output_file}.")
+        return output_file
+
+    except Exception as e:
+        print("Error during redundancy removal:", str(e))
+        return None
+
+
 # PyMol functions
 
 def loading_structures_to_pymol(structure_files,query,cmd,stored):
@@ -269,10 +436,11 @@ def super_impose_structures(structures, max_rmsd, cmd, stored):
     
     n_templates = len(structures) - 1
     query_structure = structures[0]
-    
+    # cmd.alignto(query_structure.first_chain,object="aln")
+
     # Superimpose of all structures to query_structure
     for struc in structures[1:]:
-        super = cmd.super(target=query_structure.first_chain,mobile=struc.first_chain)
+        super = cmd.super(target=query_structure.first_chain,mobile=struc.first_chain,object="aln")
         if super[0] > max_rmsd:
             print(f"\033[35m\tStructure {struc.name} was deleted because the RMSD to {query_structure.name} was above {max_rmsd}Å: {super[0]}Å\033[0m")
             cmd.delete(struc.name)
@@ -286,6 +454,17 @@ def super_impose_structures(structures, max_rmsd, cmd, stored):
     structures = []
     for struc in cmd.get_object_list():
         structures.append(Structure(struc,cmd,stored))
+
+    # seq_fasta_file = "seq.fasta"
+    # alignment_file = "alignment.aln"
+    # with open(seq_fasta_file,"w") as f:
+    #     for struc in cmd.get_object_list():
+    #         new_struc = Structure(struc,cmd,stored)
+    #         structures.append(new_struc)
+    #         f.write(f">{new_struc.name}\n{new_struc.get_fasta()}\n")
+
+
+    # generate_msa(seq_fasta_file, alignment_file)
 
     return structures
 
@@ -331,14 +510,14 @@ def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string):
                     for struc in structures if struc.cKDTree.query(tmp_center)[0] <= max_dist}
 
             
-            if not any(all(tmp.get(struc.name) == ele.get(struc.name) for struc in structures if struc.name in ele) for ele in align):
-                for x, ele in enumerate(align):
-                    key = next(iter(tmp))  # Grab any key from tmp
-                    if tmp.get(key) < ele.get(key, float('inf')):
-                        align.insert(x, tmp)
-                        break
-                else:
-                    align.append(tmp)
+            # if not any(all(tmp.get(struc.name) == ele.get(struc.name) for struc in structures if struc.name in ele) for ele in align):
+            #     for x, ele in enumerate(align):
+            #         key = next(iter(tmp))  # Grab any key from tmp
+            #         if tmp.get(key) < ele.get(key, float('inf')):
+            #             align.insert(x, tmp)
+            #             break
+            #     else:
+            #         align.append(tmp)
 
 
     return structures, align
@@ -453,6 +632,7 @@ def get_core(structures, cmd):
 
     try:
         from external.findSurfaceResidues import findSurfaceResidues
+
         # Use functions or logic from the script
     except ImportError:
         raise ImportError("Could not import findSurfaceResidues. Ensure it is downloaded.")
@@ -748,3 +928,62 @@ def format_pymol(structures, hotspot_list, cmd):
     cmd.set("seq_view_label_mode", "1")
     select_hotspots_in_pymol(hotspot_list, structures, cmd)
     
+
+def save_scores(structures, output_dir):
+    with open(os.path.join(output_dir,"scores.txt"),"w") as outfile:
+        for structure in structures:
+            outfile.write(f">{structure.name}:\n")
+            for i, score in enumerate(structure.score_list):
+                outfile.write(f"{structure.model.atom[i].resi}: {score}\n")
+
+def get_60_percent_conserved(structures):
+    score_list = structures[0].score_list
+    threshold = np.percentile(score_list, 40)
+    high_score_residues = [structures[0].model.atom[i].resi for i, score in enumerate(score_list) if score > threshold]
+    return high_score_residues
+
+
+def save_60(result_dir, structures):
+    with open(os.path.join(result_dir,"60.csv"),"w") as outfile:
+        score_list = structures[0].score_list
+        threshold = np.percentile(score_list, 40)
+        high_score_indexes = [structures[0].model.atom[i].resi for i, score in enumerate(score_list) if score > threshold]
+        outfile.write(",".join(map(str, high_score_indexes)))
+
+# def generate_msa(input_file, output_file, clustalw_exe="clustalw2"):
+#     """
+#     Generate a multiple sequence alignment (MSA) using ClustalW.
+    
+#     :param input_file: Path to the input file containing sequences in FASTA format.
+#     :param output_file: Path to the output file where the MSA will be saved.
+#     :param clustalw_exe: Path to the ClustalW executable (default is "clustalw2").
+#     """
+#     clustalw_cline = ClustalwCommandline(clustalw_exe, infile=input_file, outfile=output_file)
+#     stdout, stderr = clustalw_cline()
+#     alignment = AlignIO.read(output_file, "clustal")
+#     return alignment
+
+from Bio import AlignIO, SeqIO
+from Bio.Align import MultipleSeqAlignment, PairwiseAligner
+
+def generate_msa(input_file, output_file):
+    """
+    Generate a multiple sequence alignment (MSA) using Biopython's PairwiseAligner.
+
+    :param input_file: Path to the input file containing sequences in FASTA format.
+    :param output_file: Path to the output file where the MSA will be saved.
+    """
+    sequences = list(SeqIO.parse(input_file, "fasta"))
+    aligner = PairwiseAligner()
+    aligner.mode = "global"
+    
+    msa = MultipleSeqAlignment([])
+
+    for i in range(1, len(sequences)):
+        alignment = aligner.align(sequences[0].seq, sequences[i].seq)
+        msa.append(alignment[0])
+    
+    with open(output_file, "w") as output_handle:
+        AlignIO.write(msa, output_handle, "clustal")
+
+    return msa

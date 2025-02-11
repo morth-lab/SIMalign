@@ -7,14 +7,14 @@ import pymol2
 import shutil
 
 
-from .utils import foldseek_API_search, loading_structures_to_pymol, super_impose_structures, calculate_similarity_score, update_alignment_in_pymol, get_neighborAA, finding_hotspots, save_hotspot, format_pymol
+from .utils import foldseek_API_search, loading_structures_to_pymol, super_impose_structures, calculate_similarity_score, update_alignment_in_pymol, get_neighborAA, finding_hotspots, save_hotspot, format_pymol, save_scores, save_60, get_60_percent_conserved,blastp, create_msa, remove_redundancy_from_msa, run_cd_hit
 from .models import StructureFile, Structure
 
 
 
-def SIMalign(query, templates, job_key, homology_search_method, max_dist, max_rmsd, 
-             foldseek_databases, foldseek_mode, foldseek_threshold, numb_templates, sequence_identity, 
-             result_dir, tmp_dir, BLOSUM):
+def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology_search_method="foldseek", max_dist=6, max_rmsd=5, 
+             foldseek_databases=["afdb50"], foldseek_mode="tmalign", foldseek_threshold=0.7, numb_templates=20, sequence_identity=0.6, 
+             sequence_cov=0.6, e_value=0.001, redundancy_threshold=0.9, BLOSUM="BLOSUM62", only_conserved=False):
     """Run the SIMalign prediction algorithm."""
 
     basename = os.path.basename(query).split(".")
@@ -22,7 +22,8 @@ def SIMalign(query, templates, job_key, homology_search_method, max_dist, max_rm
     structure_files = [query_file]
 
     if homology_search_method == "user_specified":
-        for template in templates:
+        for template in os.listdir(templates):
+            template = os.path.join(templates, template)
             basename = os.path.basename(template).split(".")
             structure_files.append(StructureFile(basename[0], template, basename[1]))
 
@@ -32,8 +33,32 @@ def SIMalign(query, templates, job_key, homology_search_method, max_dist, max_rm
      
 
     elif homology_search_method == "BLASTp":
-        pass
+        print("Running BLASTp...")
+        with pymol2.PyMOL() as pymol:
+            cmd = pymol.cmd
+            stored = pymol.stored
+            query_sequence = loading_structures_to_pymol(structure_files, query, cmd, stored)[0].get_fasta()
+        blast_fasta = blastp(query_sequence, os.path.join(tmp_dir, "blastp.fasta"), database="nr", e_value=0.001, seq_identity=0.6, seq_coverage=0.6)
+        if blast_fasta:
+            non_redundant = run_cd_hit(blast_fasta, os.path.join(tmp_dir, "cd_hit.fasta"), threshold=redundancy_threshold)
+            if non_redundant:
+                ## BOLTZ-1
+                structure_files += [StructureFile(f"template_{i}", template, "fasta") for i, template in enumerate(non_redundant)]
+            # raw_msa_file = create_msa(blast_fasta, os.path.join(tmp_dir, "raw_msa.aln"))
+            # if raw_msa_file:
+            #     msa_file = remove_redundancy_from_msa(raw_msa_file, os.path.join(tmp_dir, "msa.aln"), threshold=redundancy_threshold)
+            #     if not msa_file:
+            #         raise RuntimeError("Could not filter MSA file.")
+            # else:
+            #     raise RuntimeError("Could not create MSA file.")
+            else:
+                raise RuntimeError("Could not remove redundancy from BLAST search.")
+        else:
+            raise RuntimeError("No hits were found from the BLAST search.")
+        ### BOLTZ-1
 
+
+    
     with pymol2.PyMOL() as pymol:
         cmd = pymol.cmd
         stored = pymol.stored
@@ -45,6 +70,13 @@ def SIMalign(query, templates, job_key, homology_search_method, max_dist, max_rm
 
         print("Calculating similarity scores...")
         structures, align = calculate_similarity_score(structures, max_dist, cmd, BLOSUM)
+
+        if only_conserved:
+            return get_60_percent_conserved(structures)
+
+        save_scores(structures, result_dir)
+        save_60(result_dir, structures)
+
 
         alignment_file_name = os.path.join(result_dir,"alignment.aln")
         print("Updating sequence alignment...")
@@ -66,6 +98,7 @@ def SIMalign(query, templates, job_key, homology_search_method, max_dist, max_rm
 
         save_hotspot(hotspot_list_double, result_dir, structures, mode=2)
         save_hotspot(hotspot_list_single, result_dir, structures, mode=1)
+
 
         print("Coloring structures in PyMOL...")
         format_pymol(structures, hotspot_list, cmd)
