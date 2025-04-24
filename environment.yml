@@ -1,4 +1,4 @@
-name: simalign
+name: simalign_env
 channels:
   - conda-forge
 dependencies:

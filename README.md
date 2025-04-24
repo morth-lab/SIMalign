@@ -36,7 +36,7 @@ Ensure you have `conda` installed, then use the provided `environment.yml` file 
 
 ```bash
 conda env create -f environment.yml
-conda activate simalign
+conda activate simalign_env
 ```
 
 <!-- ### 3. Install the Python Package
