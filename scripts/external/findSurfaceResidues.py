@@ -69,7 +69,7 @@ RETURNS
     """
     cutoff, doShow, quiet = float(cutoff), int(doShow), int(quiet)
 
-    selName = findSurfaceAtoms(selection, cutoff, quiet)
+    selName = findSurfaceAtoms(cmd, selection, cutoff, quiet)
 
     exposed = set()
     cmd.iterate(selName, "exposed.add((chain,resv))", space=locals())

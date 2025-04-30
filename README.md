@@ -1,4 +1,5 @@
 # SIMalign
+<img src="logo.png" alt="Alt Text" width="200">
 
 SIMalign is a Python tool designed for protein structure alignment and analysis. It integrates multiple methods to fetch homologous templates, perform alignments, and calculate similarity scores. The tool supports flexible configurations for gap recognition, RMSD thresholds, and homology search methods.
 
@@ -58,7 +59,7 @@ This step will also download the `findSurfaceResidues.py` script into the `exter
 Run SIMalign using the following command:
 
 ```bash
-python -m SIMalign.main --QUERY query.pdb
+python scripts/simalign.py --QUERY query.pdb
 ```
 
 Where you substitute query.pdb with your input `.pdb` or `.cif` file.
@@ -110,14 +111,14 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Acknowledgments
 
 - The PyMOL Script Repository for providing useful scripts like `findSurfaceResidues.py`.
-- Code review and suggestions were enhanced using ChatGPT (January 2025).
+- Code review and suggestions were enhanced using ChatGPT (May 2025).
 
 
 
 
 
 
-<img src="logo.png" alt="Alt Text" width="200">
+
 
 ### [Publication](https://services.healthtech.dtu.dk/services/SIMAlign-1.0/)
 

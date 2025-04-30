@@ -6,7 +6,7 @@ import sys
 import subprocess
 import requests
 import time
-from .models import StructureFile, Structure
+from models import StructureFile, Structure
 from scipy.spatial import cKDTree
 from Bio.Align import substitution_matrices
 import numpy as np
@@ -42,18 +42,21 @@ def validate_structure_file(file_path):
             continue
     return False
 
-def create_output_dirs(result_dir):
+def create_output_dirs(result_dir, tmp_dir):
     """Create output directories for results and temporary files."""
     try:
         if not os.path.exists(result_dir):
-            tmp_dir = os.path.join(result_dir, 'tmp')
-            result_dir_new = os.path.join(result_dir, 'results')
-            os.makedirs(tmp_dir, exist_ok=True)
-            os.makedirs(result_dir_new, exist_ok=True)
+            os.makedirs(result_dir, exist_ok=True)
     except OSError as e:
         print(f"ERROR: Could not create directories in {result_dir}: {e}")
         sys.exit(1)
-    return tmp_dir, result_dir_new
+    try:
+        if not os.path.exists(tmp_dir):
+            os.makedirs(tmp_dir, exist_ok=True)
+    except OSError as e:
+        print(f"ERROR: Could not create directories in {tmp_dir}: {e}")
+        sys.exit(1)
+    return tmp_dir, result_dir
 
 
 ## Core functions
@@ -430,7 +433,7 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored):
 
 def super_impose_structures(structures, max_rmsd, cmd, stored):
     """
-    Super impose structures to query_structure
+    Superimpose structures to query_structure
 
     """
     
@@ -505,9 +508,9 @@ def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string):
             ref_struc.score_list.append(score)
 
             # Updating alignment based on structural infomation
-            tmp_center = average_coordinate(tmp_coordinates)
-            tmp = {struc.name: struc.cKDTree.query(tmp_center)[1]
-                    for struc in structures if struc.cKDTree.query(tmp_center)[0] <= max_dist}
+            # tmp_center = average_coordinate(tmp_coordinates)
+            # tmp = {struc.name: struc.cKDTree.query(tmp_center)[1]
+            #         for struc in structures if struc.cKDTree.query(tmp_center)[0] <= max_dist}
 
             
             # if not any(all(tmp.get(struc.name) == ele.get(struc.name) for struc in structures if struc.name in ele) for ele in align):
@@ -819,53 +822,101 @@ def save_hotspot(hotspot_list, output_dir, structures, mode):
         doc.write("<h1>Printing possible double mutations in "+structures[0].name+"</h1>")
     doc.write("------------------------------------------------------------------------------")
     doc.write("<h1>Legend</h1>")
-    doc.write("<p style='color:rgb(255,9,0);'>Red : Mutations into smaller AAs</p>")
-    doc.write("<p style='color:rgb(0,100,0);'>Green: Mutations into larger AAs</p>")
-    doc.write("<p style='color:rgb(214,178,32);'>Yellow: Undefined</p>")
+    doc.write("<p style='color:rgb(209,14,14);'>Red : Mutations into smaller AAs</p>")
+    doc.write("<p style='color:rgb(13,175,73);'>Green: Mutations into larger AAs</p>")
+    doc.write("<p style='color:rgb(235,130,15);'>Orange: Undefined</p>")
     doc.write("------------------------------------------------------------------------------")
     printed = set()
     for hotspot in hotspot_list:
+
+        # Finding unique mutations
+        unique_mutations = {}
+        
         for i, mutation_list in enumerate(hotspot[1]):
             if not isinstance(mutation_list[0], str):
-                wt_list = hotspot[0]
-                non_comparable = hotspot[2][i]
-                
-                all_lower = False
-                all_higher = False
-                wt_print = ""
-                mu_print = ""
-                wt_list_sorted=sorted(wt_list)
-                mutation_list_sorted=sorted(mutation_list, key=lambda x: (x[0] if isinstance(x[0], int) else float('inf')))
+                key = "|".join([x[1] for x in mutation_list])
+                structure_name = structures[i+1].name
 
-                for wt, mu in zip(wt_list_sorted, mutation_list_sorted):
-                    if bigger_AA(wt[1], mu[1], if_refAA_and_targetAA_are_the_same=True):
-                        all_lower = True
-                    elif bigger_AA(wt[1], mu[1]):
-                        all_higher = True
-                    wt_print += wt[1]+str(wt[0])+" "
-                    mu_print += mu[1]+" "
-                if not str(wt_print)+mu[1] in printed:
-                    printed.add(str(wt_print)+mu[1])
-                    newlist=[]
-                    for j, x in enumerate(mutation_list_sorted): 
-                        if x[1] == mu[1]:
-                            newlist.append (structures[j+1].name)
-                    if all_lower:
-                        text="<p style='color:rgb(255,9,0);'>"
-                        #doc.write("<p style='color:rgb(255,9,0);'>"+str(wt_print)+"-> "+str(mu_print)+" Non-comparable: "+", ".join([str(x) for x in non_comparable]) + "; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
-                    elif all_higher:
-                        text="<p style='color:rgb(0,100,0);'>"
-                        #doc.write("<p style='color:rgb(0,255,4);'>"+str(wt_print)+" -> "+str(mu_print)+" Non-comparable"+str(len(non_comparable))+": "+", ".join([str(x) for x in non_comparable])+"; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
-                    else:
-                        text="<p style='color:rgb(214,178,32);'>"
-                        #doc.write("<p style='color:rgb(214,178,32);'>"+str(wt_print)+" -> "+str(mu_print)+" Non-comparable"+str(len(non_comparable))+": "+", ".join([str(x) for x in non_comparable])+"; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
-                    text+=str(wt_print)+" -> "+str(mu_print)
-                    if len(non_comparable)>0:
-                        text+="; Non-comparable: "+", ".join([str(x) for x in non_comparable])
-                    text+="; Structures with given mutation: " + ", ".join([str(x) for x in newlist]) + "</p>"
-                    
-                    doc.write(text)
-    doc.write("------------------------------------------------------------------------------")
+                non_comparable = set()
+                for resi in hotspot[2][i]:
+                    non_comparable.add(resi)
+
+                # value = [structure_name, list(non_comparable)]
+                if key in unique_mutations:
+                    unique_mutations[key][0].append(structure_name)
+                    unique_mutations[key][1].update(non_comparable)
+                else:
+                    unique_mutations[key] = [[structure_name], non_comparable]
+
+        wt_list = hotspot[0]
+        
+        
+        for k, v in unique_mutations.items():
+            out_text = ""
+            mutation_resn = k.split("|")
+            mutated_structures = v[0]
+            non_comparable = v[1]
+
+            # color based on mutation size
+            if all(bigger_AA(wt[1], mu) for wt, mu in zip(wt_list, mutation_resn)):
+                out_text += "<p style='color:rgb(13,175,73);'>"
+            elif all(bigger_AA(mu, wt[1]) for wt, mu in zip(wt_list, mutation_resn)):
+                out_text += "<p style='color:rgb(209,14,14);'>"
+            else:
+                out_text += "<p style='color:rgb(235,130,15);'>"
+            
+        
+            # write WT residues
+            out_text += ", ".join([x[1]+str(x[0]) for x in wt_list])
+            # write mutation residues
+            out_text += " -> " + ", ".join(mutation_resn)
+            # write non comparable residues
+            if len(non_comparable) > 0:
+                out_text += " | Non-comparable: " + ", ".join([str(x) for x in non_comparable])
+            # write structure origins 
+            out_text += " | Structures with given mutation: " + ", ".join(mutated_structures)
+              
+
+
+
+                # all_lower = False
+                # all_higher = False
+                # wt_print = ""
+                # mu_print = ""
+                # wt_list_sorted=sorted(wt_list)
+                # mutation_list_sorted=sorted(mutation_list, key=lambda x: (x[0] if isinstance(x[0], int) else float('inf')))
+
+                # for wt, mu in zip(wt_list_sorted, mutation_list_sorted):
+                #     if bigger_AA(wt[1], mu[1], if_refAA_and_targetAA_are_the_same=True):
+                #         all_lower = True
+                #     elif bigger_AA(wt[1], mu[1]):
+                #         all_higher = True
+                #     wt_print += wt[1]+str(wt[0])+" "
+                #     mu_print += mu[1]+" "
+                # if not str(wt_print)+mu[1] in printed:
+                #     printed.add(str(wt_print)+mu[1])
+                #     newlist=[]
+                #     for j, x in enumerate(mutation_list_sorted): 
+                #         if x[1] == mu[1]:
+                #             newlist.append (structures[j+1].name)
+                #     if all_lower:
+                #         text="<p style='color:rgb(255,9,0);'>"
+                #         #doc.write("<p style='color:rgb(255,9,0);'>"+str(wt_print)+"-> "+str(mu_print)+" Non-comparable: "+", ".join([str(x) for x in non_comparable]) + "; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
+                #     elif all_higher:
+                #         text="<p style='color:rgb(0,100,0);'>"
+                #         #doc.write("<p style='color:rgb(0,255,4);'>"+str(wt_print)+" -> "+str(mu_print)+" Non-comparable"+str(len(non_comparable))+": "+", ".join([str(x) for x in non_comparable])+"; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
+                #     else:
+                #         text="<p style='color:rgb(214,178,32);'>"
+                #         #doc.write("<p style='color:rgb(214,178,32);'>"+str(wt_print)+" -> "+str(mu_print)+" Non-comparable"+str(len(non_comparable))+": "+", ".join([str(x) for x in non_comparable])+"; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
+                #     text+=str(wt_print)+" -> "+str(mu_print)
+                #     if len(non_comparable)>0:
+                #         text+="; Non-comparable: "+", ".join([str(x) for x in non_comparable])
+                #     text+="; Structures with given mutation: " + ", ".join([str(x) for x in newlist]) + "</p>"
+            # if out_text not in printed:
+            #     printed.add(out_text)
+            doc.write(out_text)
+    doc.write("</p>")
+    doc.write("\n------------------------------------------------------------------------------")
     doc.close()
 
 # pymol formatting functions
@@ -885,9 +936,14 @@ def color_structure(structure, cmd):
     Coloring by similarity in pymol
     """
     score = structure.score_list
-    for i, atom in enumerate(structure.model.atom):
-        cmd.set_color(str(round(score[i],2)), color_by_number(score[i]))
-        cmd.color(str(round(score[i],2)), f"resi {atom.resi} and {structure.first_chain}")
+    cmd.set_color("unconserved", color_by_number(0))
+    for s, atom in zip(score, structure.model.atom):
+        if s == 0:
+            cmd.color("unconserved", f"resi {atom.resi} and {structure.first_chain}")
+        else:
+            color_name = str(round(s,2))
+            cmd.set_color(color_name, color_by_number(s))
+            cmd.color(color_name, f"resi {atom.resi} and {structure.first_chain}")
 
 
 def select_hotspots_in_pymol(hotspot_list, structures, cmd):
@@ -929,12 +985,42 @@ def format_pymol(structures, hotspot_list, cmd):
     select_hotspots_in_pymol(hotspot_list, structures, cmd)
     
 
-def save_scores(structures, output_dir):
-    with open(os.path.join(output_dir,"scores.txt"),"w") as outfile:
-        for structure in structures:
-            outfile.write(f">{structure.name}:\n")
-            for i, score in enumerate(structure.score_list):
-                outfile.write(f"{structure.model.atom[i].resi}: {score}\n")
+import os
+import json
+
+def save_scores_as_json(structures, output_dir, filename="scores.json"):
+    """
+    Serialize a list of structures into a JSON file with this schema:
+    {
+      "structures": [
+        {
+          "name": <structure.name>,
+          "residues": [<int>, <int>, ...],
+          "scores": [<float>, <float>, ...]
+        },
+        ...
+      ]
+    }
+    """
+
+    # build up the list of structure dicts
+    structs = []
+    for struct in structures:
+        # collect residue IDs and scores in parallel lists
+        residues = [atom.resi for atom in struct.model.atom]
+        scores   = list(struct.score_list)
+        structs.append({
+            "name":     struct.name,
+            "residues": residues,
+            "scores":   scores
+        })
+
+    # wrap it and write out
+    output_path = os.path.join(output_dir, filename)
+    with open(output_path, "w") as out:
+        json.dump({"structures": structs}, out, indent=2)
+
+
 
 def get_60_percent_conserved(structures):
     score_list = structures[0].score_list
