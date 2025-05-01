@@ -1,8 +1,10 @@
 name: simalign_env
 channels:
+  - bioconda
   - conda-forge
 dependencies:
   - python=3.10
+  - muscle           
   - numpy=2.2.1
   - pandas=2.2.3
   - scipy=1.14.1
@@ -11,3 +13,4 @@ dependencies:
   - pip:
       - biopython
       - requests
+

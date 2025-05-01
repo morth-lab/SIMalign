@@ -314,38 +314,48 @@ def blastp(query_sequence, output_fasta, database="nr", e_value=0.001, seq_ident
         print("Error during BLASTp search:", str(e))
         return None
 
-def create_msa(input_fasta, output_aligment):
-    """
-    Create a multiple sequence alignment (MSA) using Clustal Omega.
+# def create_msa(input_fasta, output_aligment):
+#     """
+#     Create a multiple sequence alignment (MSA) using Clustal Omega.
 
-    Parameters:
-        sequences (list): List of tuples containing sequence IDs and sequences.
-        output_file (str): Path to save the resulting MSA file (default: "msa_result.aln").
+#     Parameters:
+#         sequences (list): List of tuples containing sequence IDs and sequences.
+#         output_file (str): Path to save the resulting MSA file (default: "msa_result.aln").
 
-    Returns:
-        str: Path to the MSA file.
-    """
-    try:
-        # Run Clustal Omega
-        clustalomega_cline = ClustalOmegaCommandline(
-            infile=input_fasta, 
-            outfile=output_aligment, 
-            verbose=True, 
-            auto=True
-        )
-        print("Running Clustal Omega for MSA...")
-        stdout, stderr = clustalomega_cline()
+#     Returns:
+#         str: Path to the MSA file.
+#     """
+#     try:
+#         # Run Clustal Omega
+#         clustalomega_cline = ClustalOmegaCommandline(
+#             infile=input_fasta, 
+#             outfile=output_aligment, 
+#             verbose=True, 
+#             auto=True
+#         )
+#         print("Running Clustal Omega for MSA...")
+#         stdout, stderr = clustalomega_cline()
 
-        # Check the result
-        if os.path.exists(output_aligment):
-            print(f"MSA completed. Results saved to {output_aligment}.")
-            return output_aligment
-        else:
-            raise Exception("Clustal Omega did not produce an output file.")
+#         # Check the result
+#         if os.path.exists(output_aligment):
+#             print(f"MSA completed. Results saved to {output_aligment}.")
+#             return output_aligment
+#         else:
+#             raise Exception("Clustal Omega did not produce an output file.")
 
-    except Exception as e:
-        print("Error during MSA creation:", str(e))
-        return None
+#     except Exception as e:
+#         print("Error during MSA creation:", str(e))
+#         return None
+
+def run_muscle(input_fasta, output_fasta, muscle_cmd="muscle"):
+    cmd = [
+        muscle_cmd,
+        "-align",   input_fasta,
+        "-output",  output_fasta
+    ]
+    print("Running:", " ".join(cmd))
+    # run it, raising an exception on error
+    subprocess.run(cmd, check=True)
 
 def remove_redundancy_from_msa(msa_file, output_file="non_redundant_msa.aln", threshold=0.9):
     """
@@ -443,7 +453,8 @@ def super_impose_structures(structures, max_rmsd, cmd, stored):
 
     # Superimpose of all structures to query_structure
     for struc in structures[1:]:
-        super = cmd.super(target=query_structure.first_chain,mobile=struc.first_chain,object="aln")
+        # super = cmd.super(target=query_structure.first_chain,mobile=struc.first_chain,object="aln")
+        super = cmd.super(target=query_structure.first_chain, mobile=struc.first_chain)
         if super[0] > max_rmsd:
             print(f"\033[35m\tStructure {struc.name} was deleted because the RMSD to {query_structure.name} was above {max_rmsd}Å: {super[0]}Å\033[0m")
             cmd.delete(struc.name)
@@ -473,7 +484,7 @@ def super_impose_structures(structures, max_rmsd, cmd, stored):
 
 
 
-def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string):
+def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string, alignment_file_name):
 
     for struc in structures:
         struc.model = cmd.get_model(struc.CA)
@@ -1049,27 +1060,48 @@ def save_60(result_dir, structures):
 #     alignment = AlignIO.read(output_file, "clustal")
 #     return alignment
 
-from Bio import AlignIO, SeqIO
-from Bio.Align import MultipleSeqAlignment, PairwiseAligner
+# from Bio import AlignIO, SeqIO
+# from Bio.Align import MultipleSeqAlignment, PairwiseAligner
 
-def generate_msa(input_file, output_file):
-    """
-    Generate a multiple sequence alignment (MSA) using Biopython's PairwiseAligner.
+# def generate_msa(input_file, output_file):
+#     """
+#     Generate a multiple sequence alignment (MSA) using Biopython's PairwiseAligner.
 
-    :param input_file: Path to the input file containing sequences in FASTA format.
-    :param output_file: Path to the output file where the MSA will be saved.
-    """
-    sequences = list(SeqIO.parse(input_file, "fasta"))
-    aligner = PairwiseAligner()
-    aligner.mode = "global"
+#     :param input_file: Path to the input file containing sequences in FASTA format.
+#     :param output_file: Path to the output file where the MSA will be saved.
+#     """
+#     sequences = list(SeqIO.parse(input_file, "fasta"))
+#     aligner = PairwiseAligner()
+#     aligner.mode = "global"
     
-    msa = MultipleSeqAlignment([])
+#     msa = MultipleSeqAlignment([])
 
-    for i in range(1, len(sequences)):
-        alignment = aligner.align(sequences[0].seq, sequences[i].seq)
-        msa.append(alignment[0])
+#     for i in range(1, len(sequences)):
+#         alignment = aligner.align(sequences[0].seq, sequences[i].seq)
+#         msa.append(alignment[0])
     
-    with open(output_file, "w") as output_handle:
-        AlignIO.write(msa, output_handle, "clustal")
+#     with open(output_file, "w") as output_handle:
+#         AlignIO.write(msa, output_handle, "clustal")
 
-    return msa
+#     return msa
+
+
+def write_fasta(sequences: dict, filepath: str, line_width: int = 80) -> None:
+    """
+    Write a dict of sequences to a FASTA file without using textwrap.
+
+    Parameters
+    ----------
+    sequences : dict
+        Mapping from sequence name (str) to sequence string (str).
+    filepath : str
+        Path to the output FASTA file.
+    line_width : int, optional
+        Maximum characters per line of sequence (default 80).
+    """
+    with open(filepath, "w") as out:
+        for name, seq in sequences.items():
+            out.write(f">{name}\n")
+            # manually slice the sequence into chunks of line_width
+            for i in range(0, len(seq), line_width):
+                out.write(seq[i : i + line_width] + "\n")

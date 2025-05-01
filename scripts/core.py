@@ -12,6 +12,8 @@ from utils import foldseek_API_search, loading_structures_to_pymol, super_impose
 # Blast functions
 #from utils import blastp, create_msa, remove_redundancy_from_msa, run_cd_hit
 
+from utils import run_muscle, write_fasta
+
 from models import StructureFile, Structure
 
 
@@ -71,16 +73,26 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         print("Superimposing structures...")
         structures = super_impose_structures(structures, max_rmsd, cmd, stored)
 
+        sequences = {}
+        for structure in structures:
+            sequences[structure.name] = structure.get_fasta()
+        sequences_path = os.path.join(tmp_dir, "sequences.fasta")
+        write_fasta(sequences, sequences_path)
+        alignment_file_name = os.path.join(result_dir,"alignment.aln")
+        run_muscle(sequences_path, alignment_file_name)
+
+
         print("Calculating similarity scores...")
         # Seqeunce alignment based on superimposition function from PyMOL
-        structures, align = calculate_similarity_score(structures, max_dist, cmd, BLOSUM)
+        structures, align = calculate_similarity_score(structures, max_dist, cmd, BLOSUM, alignment_file_name)
+
 
 
         save_scores_as_json(structures, result_dir)
 
 
 
-        alignment_file_name = os.path.join(result_dir,"alignment.aln")
+        # alignment_file_name = os.path.join(result_dir,"alignment.aln")
         print("Updating sequence alignment...")
         # Seqeunce alignment based on superimposition function from PyMOL
         # update_alignment_in_pymol(structures, align, cmd)
