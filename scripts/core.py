@@ -12,7 +12,7 @@ from utils import foldseek_API_search, loading_structures_to_pymol, super_impose
 # Blast functions
 #from utils import blastp, create_msa, remove_redundancy_from_msa, run_cd_hit
 
-from utils import run_muscle, write_fasta
+from utils import run_muscle, write_fasta, alignment_to_dict, update_msa
 
 from models import StructureFile, Structure
 
@@ -73,14 +73,23 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         print("Superimposing structures...")
         structures = super_impose_structures(structures, max_rmsd, cmd, stored)
 
-        sequences = {}
+        print("Updating sequence alignment...")
+        structure_names = []
+        sequences = []
         for structure in structures:
-            sequences[structure.name] = structure.get_fasta()
+            sequences.append(structure.get_fasta())
+            structure_names.append(structure.name)
         sequences_path = os.path.join(tmp_dir, "sequences.fasta")
-        write_fasta(sequences, sequences_path)
+        write_fasta(sequences, structure_names, sequences_path)
         alignment_file_name = os.path.join(result_dir,"alignment.aln")
         run_muscle(sequences_path, alignment_file_name)
+        align_dict = alignment_to_dict(alignment_file_name, structures, alignment_format="fasta")
+        align_dict = update_msa(align_dict, structures, cmd, threshold=max_dist)
 
+
+
+        update_alignment_in_pymol(align_dict, cmd, structure_names)
+        cmd.save(alignment_file_name, selection="aln")
 
         print("Calculating similarity scores...")
         # Seqeunce alignment based on superimposition function from PyMOL
@@ -93,10 +102,10 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
 
 
         # alignment_file_name = os.path.join(result_dir,"alignment.aln")
-        print("Updating sequence alignment...")
+        #print("Updating sequence alignment...")
         # Seqeunce alignment based on superimposition function from PyMOL
         # update_alignment_in_pymol(structures, align, cmd)
-        cmd.save(alignment_file_name, selection="aln")
+        
         
         print("Finding hotspots...")
         align = AlignIO.read(alignment_file_name,"clustal")
@@ -123,4 +132,4 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         # result_zip = os.path.dirname(result_dir)
         # shutil.make_archive(result_zip, 'zip', result_dir)
 
-        print(f"Results saved in {result_dir}")
+        print(f"Results saved in the folder: {result_dir}")

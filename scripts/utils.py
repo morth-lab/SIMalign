@@ -6,6 +6,7 @@ import sys
 import subprocess
 import requests
 import time
+import json
 from models import StructureFile, Structure
 from scipy.spatial import cKDTree
 from Bio.Align import substitution_matrices
@@ -467,7 +468,12 @@ def super_impose_structures(structures, max_rmsd, cmd, stored):
     # Update structures after super impostion
     structures = []
     for struc in cmd.get_object_list():
-        structures.append(Structure(struc,cmd,stored))
+        s = Structure(struc,cmd,stored)
+        s.model = cmd.get_model(s.CA)
+        s.cKDTree = cKDTree([atom.coord for atom in s.model.atom])
+        structures.append(s)
+
+
 
     # seq_fasta_file = "seq.fasta"
     # alignment_file = "alignment.aln"
@@ -486,9 +492,7 @@ def super_impose_structures(structures, max_rmsd, cmd, stored):
 
 def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string, alignment_file_name):
 
-    for struc in structures:
-        struc.model = cmd.get_model(struc.CA)
-        struc.cKDTree = cKDTree([atom.coord for atom in struc.model.atom])
+
 
     n_templates = len(structures) - 1
     
@@ -518,39 +522,39 @@ def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string, alignme
                         tmp_coordinates.append(atom.coord)
             ref_struc.score_list.append(score)
 
-            # Updating alignment based on structural infomation
-            # tmp_center = average_coordinate(tmp_coordinates)
-            # tmp = {struc.name: struc.cKDTree.query(tmp_center)[1]
-            #         for struc in structures if struc.cKDTree.query(tmp_center)[0] <= max_dist}
+            # Updating alignment based on structural infomation 
+            tmp_center = average_coordinate(tmp_coordinates)
+            tmp = {struc.name: struc.cKDTree.query(tmp_center)[1]
+                    for struc in structures if struc.cKDTree.query(tmp_center)[0] <= max_dist}
 
             
-            # if not any(all(tmp.get(struc.name) == ele.get(struc.name) for struc in structures if struc.name in ele) for ele in align):
-            #     for x, ele in enumerate(align):
-            #         key = next(iter(tmp))  # Grab any key from tmp
-            #         if tmp.get(key) < ele.get(key, float('inf')):
-            #             align.insert(x, tmp)
-            #             break
-            #     else:
-            #         align.append(tmp)
+            if not any(all(tmp.get(struc.name) == ele.get(struc.name) for struc in structures if struc.name in ele) for ele in align):
+                for x, ele in enumerate(align):
+                    key = next(iter(tmp))  # Grab any key from tmp
+                    if tmp.get(key) < ele.get(key, float('inf')):
+                        align.insert(x, tmp)
+                        break
+                else:
+                    align.append(tmp)
 
 
     return structures, align
 
 
-def update_alignment_in_pymol(structures, align, cmd):
-    """
-    Update alignment in pymol
-    """
-
-    align = process_nested_dicts(align,[struc.name for struc in structures])
-    # Updating the align structure so it fits pymol
-    new_align = []
-    for pos in align:
-        tmp = []
-        for k,v in pos.items():
-            tmp.append((k,int(v+1)))
-        new_align.append(tmp)
-    cmd.set_raw_alignment("aln",new_align)
+#def update_alignment_in_pymol(structures, align, cmd):
+#    """
+#    Update alignment in pymol
+#    """
+#
+#    align = process_nested_dicts(align,[struc.name for struc in structures])
+#    # Updating the align structure so it fits pymol
+#    new_align = []
+#    for pos in align:
+#        tmp = []
+#        for k,v in pos.items():
+#            tmp.append((k,int(v+1)))
+#        new_align.append(tmp)
+#    cmd.set_raw_alignment("aln",new_align)
 
 
 
@@ -996,8 +1000,6 @@ def format_pymol(structures, hotspot_list, cmd):
     select_hotspots_in_pymol(hotspot_list, structures, cmd)
     
 
-import os
-import json
 
 def save_scores_as_json(structures, output_dir, filename="scores.json"):
     """
@@ -1086,22 +1088,373 @@ def save_60(result_dir, structures):
 #     return msa
 
 
-def write_fasta(sequences: dict, filepath: str, line_width: int = 80) -> None:
+def write_fasta(sequences: list, structure_names: list, filepath: str, line_width: int = 80) -> None:
     """
-    Write a dict of sequences to a FASTA file without using textwrap.
+    Write a list of sequences to a FASTA file.
 
     Parameters
     ----------
-    sequences : dict
-        Mapping from sequence name (str) to sequence string (str).
+    sequences : list
+        sequence string (str).
+    structure_names : list
+        list of structure names (str).
     filepath : str
         Path to the output FASTA file.
     line_width : int, optional
         Maximum characters per line of sequence (default 80).
     """
     with open(filepath, "w") as out:
-        for name, seq in sequences.items():
+        for name, seq in zip(structure_names,sequences):
             out.write(f">{name}\n")
             # manually slice the sequence into chunks of line_width
             for i in range(0, len(seq), line_width):
                 out.write(seq[i : i + line_width] + "\n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def update_msa(msa_dicts, structures, cmd, threshold=6.0):
+    """
+    Refine an MSA (list of {struc_name: atom_index, ...} columns) by:
+      1) Splitting any column whose members are >threshold Å apart into multiple sub-columns.
+      2) Merging in any mutual nearest-neighbor pairs (within threshold) that aren't yet aligned.
+    Returns a new list-of-dicts MSA.
+    """
+
+
+    index_to_pos_dicts = []
+    for struc in structures:
+        index_to_pos_dict = {}
+        for i, atom in enumerate(struc.model.atom):
+            index_to_pos_dict[atom.index] = i
+        index_to_pos_dicts.append(index_to_pos_dict)
+
+
+    # --- Step 1: split too-distant columns into clusters ---
+    refined = []
+    for col in msa_dicts:
+        clusters = cluster_column(col, structures, threshold, index_to_pos_dicts)
+        for cl in clusters:
+            refined.append({s: r for s, r in cl})
+
+
+    # Splitted columns shouldn't be merged.
+
+    # --- Step 2: merge mutual NN pairs not yet aligned ---
+    # We’ll loop until no more merges happen
+#    changed = True
+#    while changed:
+#        changed = False
+        # for each unordered pair of structures
+
+    
+#    names = [struct.name for struct in structures]
+#
+#    # track for each sequence the last kept position and which refined‐column it came from
+#    #last_pos     = {s: None for s in names}
+#    #last_col_idx = {}
+#    
+#    for i, s1 in enumerate(names):
+#        for j, s2 in enumerate(names[i+1:], start=i+1):
+#            for col in refined:
+#                # only consider columns where s1 is present but s2 is not
+#                if s1 not in col or s2 in col:
+#                    continue
+#
+#                # get absolute positions
+#                aidx1 = col[s1]
+#                apos1 = index_to_pos_dicts[i][aidx1]
+#                atom1 = structures[i].model.atom[apos1]
+#                dist12, apos2 = structures[j].cKDTree.query(atom1.coord)
+#                if dist12 > threshold:
+#                    continue
+#
+#                # mutual‐NN check
+#                atom2   = structures[j].model.atom[apos2]
+#                dist21, apos1p = structures[i].cKDTree.query(atom2.coord)
+#                if dist21 > threshold or apos1p != apos1:
+#                    continue
+#
+#                # find the two columns we would be merging
+#                aidx2     = atom2.index
+#                col_idx1  = find_column(refined, s1, aidx1)
+#                col_idx2  = find_column(refined, s2, aidx2)
+#                if col_idx1 is None or col_idx2 is None or col_idx1 == col_idx2:
+#                    continue
+#
+#                # —— skip if there’s an intervening column where both s1 and s2 already align —— #
+#                lo, hi = sorted((col_idx1, col_idx2))
+#                # scan columns between lo and hi (exclusive)
+#                conflict = False
+#                for mid in range(lo+1, hi):
+#                    if s1 in refined[mid] and s2 in refined[mid]:
+#                        conflict = True
+#                        break
+#                if conflict:
+#                    # there’s already an intervening alignment,
+#                    # so we shouldn’t merge these two columns
+#                    continue
+#
+#                # —— do the merge —— #
+#                print(f"Merging {s1}:{atom1.resi} and {s2}:{atom2.resi} into {s1}:{atom1.resi}")
+#                #refined = merge_columns(refined, col_idx1, col_idx2, s2, aidx2)
+
+                # update our “last seen” trackers
+                #last_pos[s1]     = apos1
+                #last_col_idx[s1] = col_idx1
+                #last_pos[s2]     = apos2
+                #last_col_idx[s2] = col_idx1
+    return refined
+
+
+def find_column(msa, struc_name, atom_index):
+    """Return index of the column where msa[idx][struc_name] == atom_index, or None."""
+    for i, col in enumerate(msa):
+        if col.get(struc_name) == atom_index:
+            return i
+    return None
+
+def merge_columns(msa, idx1, idx2, struc2, aidx2):
+    """
+    Merge columns in-place: add struc2:aidx2 to msa[idx1], remove it from msa[idx2], and drop idx2 if empty.
+
+    Parameters:
+        msa (list of dict): List of column mappings.
+        idx1 (int): Index of the primary column to merge into.
+        idx2 (int): Index of the secondary column to clean up.
+        struc2 (hashable): Key to merge into the first column and remove from the second.
+        aidx2 (any): Value to add under struc2 in the first column.
+    """
+    # Add the new mapping to the first column
+    msa[idx1][struc2] = aidx2
+
+    # Remove struc2 from the second column
+    if struc2 in msa[idx2]:
+        del msa[idx2][struc2]
+
+    # If that column is now empty, remove it entirely
+    if not msa[idx2]:
+        msa.pop(idx2)
+
+    return msa
+
+
+#def merge_columns(msa, idx1, idx2, struc1, aidx1, struc2, aidx2):
+#    """
+#    Remove the two columns at idx1, idx2, and insert a new merged column
+#    that aligns only struc1:aidx1 with struc2:aidx2 at position min(idx1, idx2).
+#    """
+#    msa[idx1][struc2] = aidx2
+#    # Remove struc2:aidx2 from the column at idx2
+#    # If dict is empty now, remove it
+#
+#    # pop the higher index first
+#    for idx in sorted((idx1, idx2), reverse=True):
+#        msa.pop(idx)
+#    new_col = {struc1: aidx1, struc2: aidx2}
+#    insert_pos = min(idx1, idx2)
+#    msa.insert(insert_pos, new_col)
+
+# def get_atom(structure, resi, atom_name):
+#     """
+#     Given a Bio.PDB Structure object, residue number and atom name,
+#     return the corresponding Atom.
+#     """
+#     for model in structure:
+#         for chain in model:
+#             for res in chain:
+#                 # res.get_id()[1] is the residue number
+#                 if res.get_id()[1] == resi and atom_name in res:
+#                     return res[atom_name]
+#     raise KeyError(f"Residue {resi} or atom {atom_name} not found in structure {structure.id}")
+
+def distance(coord1, coord2):
+    """Euclidean distance between two lists of coords."""
+    return np.linalg.norm(np.array(coord1) - np.array(coord2))
+
+def get_structure_by_name(structures, name):
+    for s in structures:
+        if s.name == name:
+            return s
+    return None
+
+
+
+
+
+
+def get_atom(structures, struc_name, atom_index, index_to_pos_dicts):
+    for i, s in enumerate(structures):
+        if s.name == struc_name:
+            struc = s
+            break
+    else:
+        raise ValueError(f"Structure {struc_name} not found.")
+    
+    # Get the atom using the index_to_pos_dict
+    atom_pos = index_to_pos_dicts[i][atom_index]
+    return struc.model.atom[atom_pos]
+
+#def cluster_column(col, structures, threshold, index_to_pos_dicts):
+#    """
+#    Break one MSA column (a dict struc->resi) into clusters
+#    such that within each cluster all inter-atomic distances <= threshold.
+#    Returns a list of clusters, each a list of (struc, resi).
+#    """
+#    clusters = []
+#    centers = []
+#    for struc_name, atom_index in col.items():
+#        atom = get_atom(structures, struc_name, atom_index, index_to_pos_dicts)
+#        placed = False
+#        closest_distance = float('inf')
+#
+#        if centers:
+#            for i, center in enumerate(centers):
+#                # Find the closest cluster center
+#                distance_to_center = distance(atom.coord, center)
+#                print(f"Distance to center: {distance_to_center}")
+#                if distance_to_center < closest_distance:
+#                    closest_distance = distance_to_center
+#                    closest_cluster = clusters[i]
+#                    closest_center = center
+#            if closest_distance <= threshold:
+#                closest_cluster.append((struc_name, atom_index))
+#                placed = True
+#                closest_center = np.mean(np.array([atom.coord for s, atom in closest_cluster]), axis=0)
+#                
+#
+#            # check max distance to existing cluster members
+#            if all(distance(atom.coord, get_atom(structures, s, a, index_to_pos_dicts).coord) <= threshold
+#                    for s, a in closest_cluster):
+#                closest_cluster.append((struc_name, atom_index))
+#                placed = True
+#                # Update the cluster center
+#                centers[i] = np.mean([atom.coord] + centers, axis=0)
+#                
+#        if not placed:
+#            clusters.append([(struc_name, atom_index)])
+#            centers.append(atom.coord)
+#    print(clusters)
+#    return clusters
+
+def cluster_column(col, structures, threshold, index_to_pos_dicts):
+    """
+    Cluster a single MSA column (dict struc->resi) so that every atom in each cluster
+    is within `threshold` distance of every other (complete linkage).
+
+    Args:
+        col (dict): Mapping of structure names to residue indices.
+        structures: Container of structure objects for atom lookup.
+        threshold (float): Maximum allowed inter-atomic distance in a cluster.
+        index_to_pos_dicts: Index-to-position lookup data for get_atom.
+
+    Returns:
+        List[List[(struc_name, atom_index)]]: Clusters of (structure, residue) pairs.
+    """
+    clusters = []
+    centers = []  # numpy arrays of current cluster centroids
+
+    for struc_name, atom_index in col.items():
+        atom = get_atom(structures, struc_name, atom_index, index_to_pos_dicts)
+        coord = atom.coord
+
+        # Find nearest cluster center
+        best_i = None
+        best_dist = float('inf')
+        for i, center in enumerate(centers):
+            d = distance(coord, center)
+            if d < best_dist:
+                best_dist = d
+                best_i = i
+
+        # Try to add to the best cluster (complete linkage)
+        if best_i is not None and best_dist <= threshold:
+            candidate = clusters[best_i]
+            if all(
+                distance(coord, get_atom(structures, s, a, index_to_pos_dicts).coord) <= threshold
+                for s, a in candidate
+            ):
+                candidate.append((struc_name, atom_index))
+                # Update centroid
+                all_coords = [get_atom(structures, s, a, index_to_pos_dicts).coord for s, a in candidate]
+                centers[best_i] = np.mean(np.array(all_coords), axis=0)
+                continue
+
+        # Otherwise start a new cluster
+        clusters.append([(struc_name, atom_index)])
+        centers.append(np.array(coord))
+
+    return clusters
+
+
+def update_alignment_in_pymol(align_dict, cmd, keys):
+    """
+    Update alignment in pymol
+    """
+
+    # Updating the align structure so it fits pymol
+    new_align = []
+    for dict in align_dict:
+        tmp = []
+        for k in keys:
+            if k in dict:
+                tmp.append((k,dict[k]))
+        new_align.append(tmp)
+    cmd.set_raw_alignment("aln",new_align)
+
+#def update_alignment_in_pymol(structures, align, cmd):
+#    """
+#    Update alignment in pymol
+#    """
+#
+#    align = process_nested_dicts(align,[struc.name for struc in structures])
+#    # Updating the align structure so it fits pymol
+#    new_align = []
+#    for pos in align:
+#        tmp = []
+#        for k,v in pos.items():
+#            tmp.append((k,int(v+1)))
+#        new_align.append(tmp)
+#    cmd.set_raw_alignment("aln",new_align)
+
+def alignment_to_dict(alignment_path, structures, alignment_format="fasta"):
+    """
+    Convert a multiple sequence alignment (MSA) to a list of dictionaries, where each dictionary
+    represents a position in the MSA and contains the corresponding atom indices for each structure. 
+    """
+    
+    alignment = AlignIO.read(alignment_path, alignment_format)
+
+    structures_pos_added = {}
+    for struct in structures:
+        structures_pos_added[struct.name] = 0
+
+    # build a mapping id → SeqRecord
+    id2rec = { rec.description: rec for rec in alignment }
+
+    msa_dicts = []
+    for pos in range(len(alignment[0])):
+        msa_dict = {}
+        for struc in structures:
+            seq = id2rec[struc.name].seq
+            if seq[pos] != "-":
+                atom_pos = structures_pos_added[struc.name]
+                msa_dict[struc.name] = struc.model.atom[atom_pos].index
+                structures_pos_added[struc.name] += 1
+        msa_dicts.append(msa_dict)
+    return msa_dicts
