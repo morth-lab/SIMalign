@@ -39,11 +39,6 @@ conda activate simalign_env
 simalign --QUERY query.pdb [options]
 ```
 
-Or via Python module:
-
-```bash
-python -m scripts.simalign --QUERY query.cif [options]
-```
 
 ### Common Options
 
