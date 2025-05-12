@@ -11,15 +11,7 @@ from models import StructureFile, Structure
 from scipy.spatial import cKDTree
 from Bio.Align import substitution_matrices
 import numpy as np
-from itertools import combinations
-from collections import defaultdict
 from statistics import median
-
-from Bio.Blast import NCBIWWW
-from Bio.Blast import NCBIXML
-from Bio.Align.Applications import ClustalOmegaCommandline
-
-from Bio.Align.Applications import ClustalwCommandline
 from Bio import AlignIO
 
 ## Main functions
@@ -122,32 +114,7 @@ def average_coordinate(list_of_coordinates):
     return average
 
 
-def process_nested_dicts(dicts, keys):
-    """
-    Optimized version of process_nested_dicts.
-    """
-    num_dicts = len(dicts)
-    # Pre-filter dictionaries that lack required keys
-    filtered_dicts = [
-        (idx, d) for idx, d in enumerate(dicts)
-        if all(key in d for key in keys)
-    ]
-    to_delete = defaultdict(set)
 
-    # Compare filtered dictionaries pairwise
-    for (idx_a, dict_a), (idx_b, dict_b) in combinations(filtered_dicts, 2):
-        for key1, key2 in combinations(keys, 2):
-            # Directly compare values (no redundant checks)
-            if dict_a[key1] < dict_b[key1] and dict_a[key2] > dict_b[key2]:
-                # Mark the appropriate dictionary for key deletion
-                target_idx = idx_b if abs(dict_b[key1] - dict_b[key2]) > num_dicts else idx_a
-                to_delete[target_idx].add(key2)
-
-    # Remove keys in a single pass
-    for idx, keys_to_remove in to_delete.items():
-        dicts[idx] = {k: v for k, v in dicts[idx].items() if k not in keys_to_remove}
-
-    return dicts
 
 def dist_points(coord1, coord2):
     """
@@ -229,125 +196,6 @@ def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tm
 # BLASTp functions
 
 
-
-def run_cd_hit(input_file, output_file, threshold=0.9):
-    """
-    Run the CD-HIT tool from within Python.
-
-    Parameters:
-    - input_file (str): Path to the input FASTA file.
-    - output_file (str): Path to the output FASTA file.
-    - threshold (float): Sequence identity threshold (default is 0.9).
-    """
-    try:
-        # Build the cd-hit command
-        command = [
-            "cd-hit",
-            "-i", input_file,
-            "-o", output_file,
-            "-c", str(threshold)
-        ]
-
-        # Run the command and capture the output
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-
-        print("CD-HIT completed successfully.")
-        print("STDOUT:", result.stdout)
-        print("STDERR:", result.stderr)
-        return output_file
-
-    except subprocess.CalledProcessError as e:
-        print("Error running CD-HIT:", e)
-        print("STDOUT:", e.stdout)
-        print("STDERR:", e.stderr)
-        return None
-
-
-
-def blastp(query_sequence, output_fasta, database="nr", e_value=0.001, seq_identity=0.6, seq_coverage=0.6):
-    """
-    Perform a BLASTp search using Biopython's NCBIWWW module.
-
-    Parameters:
-        query_sequence (str): Protein sequence to search.
-        database (str): Database to search against (default: "nr").
-        e_value (float): E-value threshold (default: 0.001).
-
-    Returns:
-        list: List of tuples containing sequence IDs and sequences with identity >= 0.6 and coverage >= 0.6.
-    """
-    try:
-        print("Submitting BLASTp search...")
-        # Perform BLAST search
-        result_handle = NCBIWWW.qblast(
-            program="blastp",
-            database=database,
-            sequence=query_sequence,
-            expect=e_value,
-            format_type="XML"
-        )
-
-        print("Parsing BLAST results...")
-        blast_records = NCBIXML.parse(result_handle)
-
-        filtered_results = []
-
-        # Extract sequences and IDs with identity >= 0.6 and coverage >= 0.6
-        for record in blast_records:
-            for alignment in record.alignments:
-                for hsp in alignment.hsps:
-                    identity = hsp.identities / hsp.align_length
-                    coverage = hsp.align_length / len(query_sequence)
-                    if identity >= seq_identity and coverage >= seq_coverage:
-                        filtered_results.append((alignment.accession, hsp.sbjct))
-
-        with open(output_fasta, "w") as output_handle:
-            for seq_id, seq in filtered_results:
-                output_handle.write(f">{seq_id}\n{seq}\n")
-        # Check the result
-        if os.path.exists(output_fasta):
-            print(f"BLAST completed. Results saved to {output_fasta}.")
-            return output_fasta
-        else:
-            raise Exception("Clustal Omega did not produce an output file.")
-
-    except Exception as e:
-        print("Error during BLASTp search:", str(e))
-        return None
-
-# def create_msa(input_fasta, output_aligment):
-#     """
-#     Create a multiple sequence alignment (MSA) using Clustal Omega.
-
-#     Parameters:
-#         sequences (list): List of tuples containing sequence IDs and sequences.
-#         output_file (str): Path to save the resulting MSA file (default: "msa_result.aln").
-
-#     Returns:
-#         str: Path to the MSA file.
-#     """
-#     try:
-#         # Run Clustal Omega
-#         clustalomega_cline = ClustalOmegaCommandline(
-#             infile=input_fasta, 
-#             outfile=output_aligment, 
-#             verbose=True, 
-#             auto=True
-#         )
-#         print("Running Clustal Omega for MSA...")
-#         stdout, stderr = clustalomega_cline()
-
-#         # Check the result
-#         if os.path.exists(output_aligment):
-#             print(f"MSA completed. Results saved to {output_aligment}.")
-#             return output_aligment
-#         else:
-#             raise Exception("Clustal Omega did not produce an output file.")
-
-#     except Exception as e:
-#         print("Error during MSA creation:", str(e))
-#         return None
-
 def run_muscle(input_fasta, output_fasta, muscle_cmd="muscle"):
     cmd = [
         muscle_cmd,
@@ -357,42 +205,6 @@ def run_muscle(input_fasta, output_fasta, muscle_cmd="muscle"):
     print("Running:", " ".join(cmd))
     # run it, raising an exception on error
     subprocess.run(cmd, check=True)
-
-def remove_redundancy_from_msa(msa_file, output_file="non_redundant_msa.aln", threshold=0.9):
-    """
-    Remove redundancy from an MSA based on sequence similarity.
-
-    Parameters:
-        msa_file (str): Path to the MSA file.
-        output_file (str): Path to save the non-redundant MSA file.
-        threshold (float): Similarity threshold above which sequences are considered redundant (default: 0.9).
-
-    Returns:
-        str: Path to the non-redundant MSA file.
-    """
-    try:
-        print(f"Loading MSA from {msa_file}...")
-        alignment = AlignIO.read(msa_file, "clustal")
-
-        non_redundant_sequences = []
-        sequence_set = set()
-
-        for record in alignment:
-            sequence = str(record.seq)
-            if not any(sum(a == b for a, b in zip(sequence, ref_seq)) / len(sequence) > threshold \
-                       for ref_seq in sequence_set):
-                non_redundant_sequences.append(record)
-                sequence_set.add(sequence)
-
-        print("Writing non-redundant MSA...")
-        AlignIO.write(non_redundant_sequences, output_file, "clustal")
-
-        print(f"Non-redundant MSA saved to {output_file}.")
-        return output_file
-
-    except Exception as e:
-        print("Error during redundancy removal:", str(e))
-        return None
 
 
 # PyMol functions
@@ -473,19 +285,6 @@ def super_impose_structures(structures, max_rmsd, cmd, stored):
         s.cKDTree = cKDTree([atom.coord for atom in s.model.atom])
         structures.append(s)
 
-
-
-    # seq_fasta_file = "seq.fasta"
-    # alignment_file = "alignment.aln"
-    # with open(seq_fasta_file,"w") as f:
-    #     for struc in cmd.get_object_list():
-    #         new_struc = Structure(struc,cmd,stored)
-    #         structures.append(new_struc)
-    #         f.write(f">{new_struc.name}\n{new_struc.get_fasta()}\n")
-
-
-    # generate_msa(seq_fasta_file, alignment_file)
-
     return structures
 
 
@@ -539,22 +338,6 @@ def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string, alignme
 
 
     return structures, align
-
-
-#def update_alignment_in_pymol(structures, align, cmd):
-#    """
-#    Update alignment in pymol
-#    """
-#
-#    align = process_nested_dicts(align,[struc.name for struc in structures])
-#    # Updating the align structure so it fits pymol
-#    new_align = []
-#    for pos in align:
-#        tmp = []
-#        for k,v in pos.items():
-#            tmp.append((k,int(v+1)))
-#        new_align.append(tmp)
-#    cmd.set_raw_alignment("aln",new_align)
 
 
 
@@ -891,44 +674,6 @@ def save_hotspot(hotspot_list, output_dir, structures, mode):
             # write structure origins 
             out_text += " | Structures with given mutation: " + ", ".join(mutated_structures)
               
-
-
-
-                # all_lower = False
-                # all_higher = False
-                # wt_print = ""
-                # mu_print = ""
-                # wt_list_sorted=sorted(wt_list)
-                # mutation_list_sorted=sorted(mutation_list, key=lambda x: (x[0] if isinstance(x[0], int) else float('inf')))
-
-                # for wt, mu in zip(wt_list_sorted, mutation_list_sorted):
-                #     if bigger_AA(wt[1], mu[1], if_refAA_and_targetAA_are_the_same=True):
-                #         all_lower = True
-                #     elif bigger_AA(wt[1], mu[1]):
-                #         all_higher = True
-                #     wt_print += wt[1]+str(wt[0])+" "
-                #     mu_print += mu[1]+" "
-                # if not str(wt_print)+mu[1] in printed:
-                #     printed.add(str(wt_print)+mu[1])
-                #     newlist=[]
-                #     for j, x in enumerate(mutation_list_sorted): 
-                #         if x[1] == mu[1]:
-                #             newlist.append (structures[j+1].name)
-                #     if all_lower:
-                #         text="<p style='color:rgb(255,9,0);'>"
-                #         #doc.write("<p style='color:rgb(255,9,0);'>"+str(wt_print)+"-> "+str(mu_print)+" Non-comparable: "+", ".join([str(x) for x in non_comparable]) + "; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
-                #     elif all_higher:
-                #         text="<p style='color:rgb(0,100,0);'>"
-                #         #doc.write("<p style='color:rgb(0,255,4);'>"+str(wt_print)+" -> "+str(mu_print)+" Non-comparable"+str(len(non_comparable))+": "+", ".join([str(x) for x in non_comparable])+"; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
-                #     else:
-                #         text="<p style='color:rgb(214,178,32);'>"
-                #         #doc.write("<p style='color:rgb(214,178,32);'>"+str(wt_print)+" -> "+str(mu_print)+" Non-comparable"+str(len(non_comparable))+": "+", ".join([str(x) for x in non_comparable])+"; Structures with given mutation:" + ", ".join([str(x) for x in newlist]) + "</p>")
-                #     text+=str(wt_print)+" -> "+str(mu_print)
-                #     if len(non_comparable)>0:
-                #         text+="; Non-comparable: "+", ".join([str(x) for x in non_comparable])
-                #     text+="; Structures with given mutation: " + ", ".join([str(x) for x in newlist]) + "</p>"
-            # if out_text not in printed:
-            #     printed.add(out_text)
             doc.write(out_text)
     doc.write("</p>")
     doc.write("\n------------------------------------------------------------------------------")
@@ -1035,58 +780,6 @@ def save_scores_as_json(structures, output_dir, filename="scores.json"):
 
 
 
-def get_60_percent_conserved(structures):
-    score_list = structures[0].score_list
-    threshold = np.percentile(score_list, 40)
-    high_score_residues = [structures[0].model.atom[i].resi for i, score in enumerate(score_list) if score > threshold]
-    return high_score_residues
-
-
-def save_60(result_dir, structures):
-    with open(os.path.join(result_dir,"60.csv"),"w") as outfile:
-        score_list = structures[0].score_list
-        threshold = np.percentile(score_list, 40)
-        high_score_indexes = [structures[0].model.atom[i].resi for i, score in enumerate(score_list) if score > threshold]
-        outfile.write(",".join(map(str, high_score_indexes)))
-
-# def generate_msa(input_file, output_file, clustalw_exe="clustalw2"):
-#     """
-#     Generate a multiple sequence alignment (MSA) using ClustalW.
-    
-#     :param input_file: Path to the input file containing sequences in FASTA format.
-#     :param output_file: Path to the output file where the MSA will be saved.
-#     :param clustalw_exe: Path to the ClustalW executable (default is "clustalw2").
-#     """
-#     clustalw_cline = ClustalwCommandline(clustalw_exe, infile=input_file, outfile=output_file)
-#     stdout, stderr = clustalw_cline()
-#     alignment = AlignIO.read(output_file, "clustal")
-#     return alignment
-
-# from Bio import AlignIO, SeqIO
-# from Bio.Align import MultipleSeqAlignment, PairwiseAligner
-
-# def generate_msa(input_file, output_file):
-#     """
-#     Generate a multiple sequence alignment (MSA) using Biopython's PairwiseAligner.
-
-#     :param input_file: Path to the input file containing sequences in FASTA format.
-#     :param output_file: Path to the output file where the MSA will be saved.
-#     """
-#     sequences = list(SeqIO.parse(input_file, "fasta"))
-#     aligner = PairwiseAligner()
-#     aligner.mode = "global"
-    
-#     msa = MultipleSeqAlignment([])
-
-#     for i in range(1, len(sequences)):
-#         alignment = aligner.align(sequences[0].seq, sequences[i].seq)
-#         msa.append(alignment[0])
-    
-#     with open(output_file, "w") as output_handle:
-#         AlignIO.write(msa, output_handle, "clustal")
-
-#     return msa
-
 
 def write_fasta(sequences: list, structure_names: list, filepath: str, line_width: int = 80) -> None:
     """
@@ -1111,23 +804,6 @@ def write_fasta(sequences: list, structure_names: list, filepath: str, line_widt
                 out.write(seq[i : i + line_width] + "\n")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def update_msa(msa_dicts, structures, cmd, threshold=6.0):
     """
     Refine an MSA (list of {struc_name: atom_index, ...} columns) by:
@@ -1145,156 +821,20 @@ def update_msa(msa_dicts, structures, cmd, threshold=6.0):
         index_to_pos_dicts.append(index_to_pos_dict)
 
 
-    # --- Step 1: split too-distant columns into clusters ---
+    # --- Split too-distant columns into clusters ---
     refined = []
     for col in msa_dicts:
         clusters = cluster_column(col, structures, threshold, index_to_pos_dicts)
         for cl in clusters:
             refined.append({s: r for s, r in cl})
 
-
-    # Splitted columns shouldn't be merged.
-
-    # --- Step 2: merge mutual NN pairs not yet aligned ---
-    # We’ll loop until no more merges happen
-#    changed = True
-#    while changed:
-#        changed = False
-        # for each unordered pair of structures
-
-    
-#    names = [struct.name for struct in structures]
-#
-#    # track for each sequence the last kept position and which refined‐column it came from
-#    #last_pos     = {s: None for s in names}
-#    #last_col_idx = {}
-#    
-#    for i, s1 in enumerate(names):
-#        for j, s2 in enumerate(names[i+1:], start=i+1):
-#            for col in refined:
-#                # only consider columns where s1 is present but s2 is not
-#                if s1 not in col or s2 in col:
-#                    continue
-#
-#                # get absolute positions
-#                aidx1 = col[s1]
-#                apos1 = index_to_pos_dicts[i][aidx1]
-#                atom1 = structures[i].model.atom[apos1]
-#                dist12, apos2 = structures[j].cKDTree.query(atom1.coord)
-#                if dist12 > threshold:
-#                    continue
-#
-#                # mutual‐NN check
-#                atom2   = structures[j].model.atom[apos2]
-#                dist21, apos1p = structures[i].cKDTree.query(atom2.coord)
-#                if dist21 > threshold or apos1p != apos1:
-#                    continue
-#
-#                # find the two columns we would be merging
-#                aidx2     = atom2.index
-#                col_idx1  = find_column(refined, s1, aidx1)
-#                col_idx2  = find_column(refined, s2, aidx2)
-#                if col_idx1 is None or col_idx2 is None or col_idx1 == col_idx2:
-#                    continue
-#
-#                # —— skip if there’s an intervening column where both s1 and s2 already align —— #
-#                lo, hi = sorted((col_idx1, col_idx2))
-#                # scan columns between lo and hi (exclusive)
-#                conflict = False
-#                for mid in range(lo+1, hi):
-#                    if s1 in refined[mid] and s2 in refined[mid]:
-#                        conflict = True
-#                        break
-#                if conflict:
-#                    # there’s already an intervening alignment,
-#                    # so we shouldn’t merge these two columns
-#                    continue
-#
-#                # —— do the merge —— #
-#                print(f"Merging {s1}:{atom1.resi} and {s2}:{atom2.resi} into {s1}:{atom1.resi}")
-#                #refined = merge_columns(refined, col_idx1, col_idx2, s2, aidx2)
-
-                # update our “last seen” trackers
-                #last_pos[s1]     = apos1
-                #last_col_idx[s1] = col_idx1
-                #last_pos[s2]     = apos2
-                #last_col_idx[s2] = col_idx1
     return refined
 
 
-def find_column(msa, struc_name, atom_index):
-    """Return index of the column where msa[idx][struc_name] == atom_index, or None."""
-    for i, col in enumerate(msa):
-        if col.get(struc_name) == atom_index:
-            return i
-    return None
-
-def merge_columns(msa, idx1, idx2, struc2, aidx2):
-    """
-    Merge columns in-place: add struc2:aidx2 to msa[idx1], remove it from msa[idx2], and drop idx2 if empty.
-
-    Parameters:
-        msa (list of dict): List of column mappings.
-        idx1 (int): Index of the primary column to merge into.
-        idx2 (int): Index of the secondary column to clean up.
-        struc2 (hashable): Key to merge into the first column and remove from the second.
-        aidx2 (any): Value to add under struc2 in the first column.
-    """
-    # Add the new mapping to the first column
-    msa[idx1][struc2] = aidx2
-
-    # Remove struc2 from the second column
-    if struc2 in msa[idx2]:
-        del msa[idx2][struc2]
-
-    # If that column is now empty, remove it entirely
-    if not msa[idx2]:
-        msa.pop(idx2)
-
-    return msa
-
-
-#def merge_columns(msa, idx1, idx2, struc1, aidx1, struc2, aidx2):
-#    """
-#    Remove the two columns at idx1, idx2, and insert a new merged column
-#    that aligns only struc1:aidx1 with struc2:aidx2 at position min(idx1, idx2).
-#    """
-#    msa[idx1][struc2] = aidx2
-#    # Remove struc2:aidx2 from the column at idx2
-#    # If dict is empty now, remove it
-#
-#    # pop the higher index first
-#    for idx in sorted((idx1, idx2), reverse=True):
-#        msa.pop(idx)
-#    new_col = {struc1: aidx1, struc2: aidx2}
-#    insert_pos = min(idx1, idx2)
-#    msa.insert(insert_pos, new_col)
-
-# def get_atom(structure, resi, atom_name):
-#     """
-#     Given a Bio.PDB Structure object, residue number and atom name,
-#     return the corresponding Atom.
-#     """
-#     for model in structure:
-#         for chain in model:
-#             for res in chain:
-#                 # res.get_id()[1] is the residue number
-#                 if res.get_id()[1] == resi and atom_name in res:
-#                     return res[atom_name]
-#     raise KeyError(f"Residue {resi} or atom {atom_name} not found in structure {structure.id}")
 
 def distance(coord1, coord2):
     """Euclidean distance between two lists of coords."""
     return np.linalg.norm(np.array(coord1) - np.array(coord2))
-
-def get_structure_by_name(structures, name):
-    for s in structures:
-        if s.name == name:
-            return s
-    return None
-
-
-
 
 
 
@@ -1310,47 +850,7 @@ def get_atom(structures, struc_name, atom_index, index_to_pos_dicts):
     atom_pos = index_to_pos_dicts[i][atom_index]
     return struc.model.atom[atom_pos]
 
-#def cluster_column(col, structures, threshold, index_to_pos_dicts):
-#    """
-#    Break one MSA column (a dict struc->resi) into clusters
-#    such that within each cluster all inter-atomic distances <= threshold.
-#    Returns a list of clusters, each a list of (struc, resi).
-#    """
-#    clusters = []
-#    centers = []
-#    for struc_name, atom_index in col.items():
-#        atom = get_atom(structures, struc_name, atom_index, index_to_pos_dicts)
-#        placed = False
-#        closest_distance = float('inf')
-#
-#        if centers:
-#            for i, center in enumerate(centers):
-#                # Find the closest cluster center
-#                distance_to_center = distance(atom.coord, center)
-#                print(f"Distance to center: {distance_to_center}")
-#                if distance_to_center < closest_distance:
-#                    closest_distance = distance_to_center
-#                    closest_cluster = clusters[i]
-#                    closest_center = center
-#            if closest_distance <= threshold:
-#                closest_cluster.append((struc_name, atom_index))
-#                placed = True
-#                closest_center = np.mean(np.array([atom.coord for s, atom in closest_cluster]), axis=0)
-#                
-#
-#            # check max distance to existing cluster members
-#            if all(distance(atom.coord, get_atom(structures, s, a, index_to_pos_dicts).coord) <= threshold
-#                    for s, a in closest_cluster):
-#                closest_cluster.append((struc_name, atom_index))
-#                placed = True
-#                # Update the cluster center
-#                centers[i] = np.mean([atom.coord] + centers, axis=0)
-#                
-#        if not placed:
-#            clusters.append([(struc_name, atom_index)])
-#            centers.append(atom.coord)
-#    print(clusters)
-#    return clusters
+
 
 def cluster_column(col, structures, threshold, index_to_pos_dicts):
     """
@@ -1417,20 +917,7 @@ def update_alignment_in_pymol(align_dict, cmd, keys):
         new_align.append(tmp)
     cmd.set_raw_alignment("aln",new_align)
 
-#def update_alignment_in_pymol(structures, align, cmd):
-#    """
-#    Update alignment in pymol
-#    """
-#
-#    align = process_nested_dicts(align,[struc.name for struc in structures])
-#    # Updating the align structure so it fits pymol
-#    new_align = []
-#    for pos in align:
-#        tmp = []
-#        for k,v in pos.items():
-#            tmp.append((k,int(v+1)))
-#        new_align.append(tmp)
-#    cmd.set_raw_alignment("aln",new_align)
+
 
 def alignment_to_dict(alignment_path, structures, alignment_format="fasta"):
     """
