@@ -36,7 +36,7 @@ conda activate simalign_env
 ## Usage
 
 ```bash
-simalign --QUERY query.pdb [options]
+python scripts/simalign --QUERY query.pdb [options]
 ```
 
 
