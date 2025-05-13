@@ -140,6 +140,8 @@ def extract_highest_results(tresshold, number_of_templates, tmp_dir, result_dir,
     :return: list of structure_files with downloaded AF structures
     """
     for file in os.listdir(tmp_dir):
+        if "_report" in file:
+            continue
         m8file = os.path.join(tmp_dir,file)
     with open(m8file,"r") as infile:
         lines = infile.readlines()
