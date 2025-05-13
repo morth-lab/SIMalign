@@ -164,6 +164,8 @@ def main():
             if not validate_structure_file(temp_file):
                 print(f"ERROR: {temp_file} must be of either .pdb or .cif format.")
                 sys.exit(1)
+    else:
+        templates = None
 
 
     if args.MAX_DISTANCE <= 0:
