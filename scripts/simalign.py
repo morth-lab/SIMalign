@@ -141,6 +141,14 @@ def main():
         choices=["BLOSUM50","BLOSUM62"],
         help="BLOSUM matrix used for sequence alignemnt."
     )
+    parser.add_argument(
+        "--only_core",
+        type=str,
+        default="1",
+        choices=["0", "1"],
+        help="If set to 1, only hotspots in the core of the protein will be considered. If set to 0, all hotspots will be considered. Default is 1."
+    )
+
     args = parser.parse_args()
 
     # Validate arguments and inputs
@@ -209,6 +217,7 @@ def main():
           f"sequence_cov = {args.SEQUENCE_COV},",
           f"redundancy_threshold = {args.REDUNDANCY_THRESHOLD},",
           f"BLOSUM = {args.BLOSUM}",
+          f"only_core = {args.only_core}",
           sep="\n")
 
     tmp_dir, result_dir = create_output_dirs(args.RESULT_DIR, args.TMP_DIR)
@@ -229,7 +238,9 @@ def main():
              sequence_identity=args.SEQUENCE_IDENTITY,
              sequence_cov=args.SEQUENCE_COV,
              redundancy_threshold=args.REDUNDANCY_THRESHOLD,
-             BLOSUM=args.BLOSUM)
+             BLOSUM=args.BLOSUM,
+             only_core=args.only_core
+            )
 
 if __name__ == "__main__":
     main()

@@ -13,7 +13,7 @@ from models import StructureFile, Structure
 
 def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology_search_method="foldseek", max_dist=6, max_rmsd=5, 
              foldseek_databases=["afdb50"], foldseek_mode="tmalign", foldseek_threshold=0.7, numb_templates=20, sequence_identity=0.6, 
-             sequence_cov=0.6, e_value=0.001, redundancy_threshold=0.9, BLOSUM="BLOSUM62"):
+             sequence_cov=0.6, e_value=0.001, redundancy_threshold=0.9, BLOSUM="BLOSUM62", only_core="1"):
     """Run the SIMalign prediction algorithm."""
 
     basename = os.path.basename(query).split(".")
@@ -66,13 +66,13 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         
         print("Finding hotspots...")
         align = AlignIO.read(alignment_file_name,"clustal")
-        neighborAA_list, core, core_index = get_neighborAA(structures, align, cmd)
+        neighborAA_list, core, core_index = get_neighborAA(structures, align, cmd, only_core)
             
         # Finding double mutations
-        hotspot_list_double = finding_hotspots(neighborAA_list, align, structures, core, core_index, mode=2)
+        hotspot_list_double = finding_hotspots(neighborAA_list, align, structures, core, core_index, only_core, mode=2)
             
         # Finding single mutations
-        hotspot_list_single = finding_hotspots(neighborAA_list, align, structures, core, core_index, mode=1)
+        hotspot_list_single = finding_hotspots(neighborAA_list, align, structures, core, core_index, only_core, mode=1)
             
         hotspot_list = hotspot_list_double + hotspot_list_single
         

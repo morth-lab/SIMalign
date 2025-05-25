@@ -58,6 +58,7 @@ python scripts/simalign --QUERY query.pdb [options]
 | `--RESULT_DIR` `-R`             | Directory for results.                                             | `./<JOB_KEY>` |
 | `--TMP_DIR` `-tmp`              | Directory for temporary files.                                     | `./tmp`       |
 | `--JOB_KEY` `-j`                | Job name key. Auto-generated if omitted.                           | random        |
+| `--only_core`  	                | If set to 1, only hotspots in the core of the protein will be considered.  | `1` |
 
 <!-- | `--SEQUENCE_IDENTITY` `-sident` | Min. identity for BLASTp (0–1).                                    | `0.6`         |
 | `--SEQUENCE_COV` `-scov`        | Min. coverage for BLASTp (0–1).                                    | `0.6`         |

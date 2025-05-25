@@ -142,7 +142,8 @@ def extract_highest_results(tresshold, number_of_templates, tmp_dir, result_dir,
     for file in os.listdir(tmp_dir):
         if "_report" in file:
             continue
-        m8file = os.path.join(tmp_dir,file)
+        if file.endswith(".m8"):
+            m8file = os.path.join(tmp_dir,file)
     with open(m8file,"r") as infile:
         lines = infile.readlines()
         lines = lines[:number_of_templates]
@@ -173,7 +174,9 @@ def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tm
     foldseekAPI = f'curl -X POST -F "q=@{query}" -F "mode={foldseek_mode}"{databases} https://search.foldseek.com/api/ticket'
     result = subprocess.run(foldseekAPI, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
+        print(result.stdout)
         ticket = result.stdout.split('"')[3]
+        print(ticket)
     except:
         result = subprocess.run(foldseekAPI, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         ticket = result.stdout.split('"')[3]
@@ -463,7 +466,7 @@ def update_neighborAA_list(neighborAA_list, tmp_neighborAAs, count, residue, res
 
     return neighborAA_list, count
 
-def get_neighborAA(structures, align, cmd):
+def get_neighborAA(structures, align, cmd, only_core):
     """
     Get neighbor AA list and conserved regions
     :param structures: list of structures
@@ -478,7 +481,10 @@ def get_neighborAA(structures, align, cmd):
 
     neighborAA_list = []
     for j, struc in enumerate(structures[1:]):
-        resi_list = [index_to_resi(index, align[j+1], struc.model.atom) for index in core_index]
+        if only_core == "1":
+            resi_list = [index_to_resi(index, align[j+1], struc.model.atom) for index in core_index]
+        else:
+            resi_list = [index_to_resi(index, align[j+1], struc.model.atom) for index in range(len(align[j+1].seq)) if align[j+1].seq[index] != "-"]
         resi_set = set(resi_list)
 
         neighborAA_list.append([])
@@ -508,19 +514,32 @@ def get_neighborAA(structures, align, cmd):
         while len(resi_list) > count:
             neighborAA_list[j].append(set())
             count += 1
-
     return neighborAA_list, core, core_index
 
 
 
-def finding_hotspots(neighborAA_list, align, structures, core, core_index, mode=1):
+def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_core, mode=1):
     """
-    ChatGPT can you add some text here?
+    Find hotspots in the structures based on the neighborAA_list and alignment.
     """
+    # if only_core != "1":
+    #    core_index = [x for x in range(len(align[0].seq)) if align[0].seq[x] != "-"]
+    #else:
+    index_to_pos = []
+    for seq in align[1:]:
+        tmp_dict = {}
+        pos = 0
+        for i, resi in enumerate(seq):
+            if resi != "-":
+                tmp_dict[i] = pos
+                pos += 1
+        index_to_pos.append(tmp_dict)
+                    
+
     hotspot_list = []
     
     for query_atom in structures[0].model.atom:
-        if int(query_atom.resi) in core:
+        if int(query_atom.resi) in core or only_core != "1":
             query_resi = int(query_atom.resi)
             query_resn = query_atom.resn
             ref_index = resi_to_index(query_resi, align[0], structures[0].model.atom)
@@ -548,7 +567,11 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, mode=
                     # Check that CA atom of template is close to CA atom of query
                     if dist_points(query_atom.coord,template_atom.coord) < 1:    
                         # Check that ALL close AA to query AA is the same or smaller
-                        for closeAA in neighborAA_list[j][core_index.index(ref_index)]:
+                        if only_core == "1":
+                            neighbor_idx = core_index.index(ref_index)
+                        else:
+                            neighbor_idx = index_to_pos[j][ref_index]
+                        for closeAA in neighborAA_list[j][neighbor_idx]:
                             if not bigger_AA(seq[closeAA],align[0][closeAA],if_refAA_and_targetAA_are_the_same=True):
                                 resi_off.append(closeAA)
                             else:
@@ -568,10 +591,15 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, mode=
                         # If searching for double mutations
                         elif mode == 2:
                             # Check posiblity for double mutations
-                            if len(resi_off) == 1 and query_resi not in resi_in_hotspot_list:
-                                if resi_off[0] in core_index:
+                            if len(resi_off) == 1 and query_resi not in resi_in_hotspot_list and resi_off[0] in index_to_pos[j]:
+                                if resi_off[0] in core_index or only_core != "1":
                                     resi_off_for_close = []
-                                    for close_to_close in neighborAA_list[j][core_index.index(resi_off[0])]:
+                                    if only_core == "1":
+                                        neighbor_idx_off = core_index.index(resi_off[0])
+                                    else:
+                                        neighbor_idx_off = index_to_pos[j][resi_off[0]]
+
+                                    for close_to_close in neighborAA_list[j][neighbor_idx_off]:
                                         if not bigger_AA(seq[close_to_close],align[0][close_to_close],if_refAA_and_targetAA_are_the_same=True):
                                             resi_off_for_close.append(close_to_close)
                                         else:
