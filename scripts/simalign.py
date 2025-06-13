@@ -151,6 +151,10 @@ def main():
 
     args = parser.parse_args()
 
+    # Change "0" extension to ".pdb" for web server
+    if args.QUERY.endswith("0"):
+        args.QUERY = args.QUERY[:-1] + "pdb"
+
     # Validate arguments and inputs
     if not validate_structure_file(args.QUERY):
         print(f"ERROR: The query file {args.QUERY} must be of either .pdb or .cif format.")
@@ -163,6 +167,10 @@ def main():
             sys.exit(1)
         elif args.TEMPLATES is not None:
             templates = args.TEMPLATES
+            # Change "0" extension to ".pdb" for web server
+            for i, temp_file in enumerate(templates):
+                if temp_file.endswith("0"):
+                    templates[i] = temp_file[:-1] + "pdb"
         else:
             templates = [os.path.join(args.TEMPLATES_DIR, temp_file) for temp_file in os.listdir(args.TEMPLATES_DIR)]
         if len(templates) < 2:
