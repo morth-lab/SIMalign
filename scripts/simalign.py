@@ -153,7 +153,10 @@ def main():
 
     # Change "0" extension to ".pdb" for web server
     if args.QUERY.endswith("0"):
+        old_query_path = args.QUERY
         args.QUERY = args.QUERY[:-1] + "pdb"
+        new_query_path = args.QUERY
+        os.rename(old_query_path, new_query_path)
 
     # Validate arguments and inputs
     if not validate_structure_file(args.QUERY):
@@ -170,7 +173,11 @@ def main():
             # Change "0" extension to ".pdb" for web server
             for i, temp_file in enumerate(templates):
                 if temp_file.endswith("0"):
-                    templates[i] = temp_file[:-1] + "pdb"
+                    old_temp_file_path = temp_file
+                    temp_file = temp_file[:-1] + "pdb"
+                    new_temp_file_path = temp_file
+                    os.rename(old_temp_file_path, new_temp_file_path)
+                    templates[i] = new_temp_file_path
         else:
             templates = [os.path.join(args.TEMPLATES_DIR, temp_file) for temp_file in os.listdir(args.TEMPLATES_DIR)]
         if len(templates) < 2:
