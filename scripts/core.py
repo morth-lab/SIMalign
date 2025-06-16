@@ -46,13 +46,15 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         for structure in structures:
             sequences.append(structure.get_fasta())
             structure_names.append(structure.name)
-        sequences_path = os.path.join(tmp_dir, "sequences.fasta")
+        sequences_path = os.path.join(result_dir, "sequences.fasta")
         write_fasta(sequences, structure_names, sequences_path)
         alignment_file_name = os.path.join(result_dir,"alignment.aln")
         run_muscle(sequences_path, alignment_file_name)
+        print("Alignment file created:", alignment_file_name)
         align_dict = alignment_to_dict(alignment_file_name, structures, alignment_format="fasta")
+        print("Updating MSA...")
         align_dict = update_msa(align_dict, structures, cmd, threshold=max_dist)
-
+        print("Updating alignment in PyMOL...")
 
         update_alignment_in_pymol(align_dict, cmd, structure_names)
         cmd.save(alignment_file_name, selection="aln")

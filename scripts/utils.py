@@ -212,6 +212,7 @@ def run_muscle(input_fasta, output_fasta, muscle_cmd="muscle"):
     subprocess.run(cmd, check=True)
 
 
+
 # PyMol functions
 
 def loading_structures_to_pymol(structure_files,query,cmd,stored):
