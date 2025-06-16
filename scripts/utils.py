@@ -209,7 +209,11 @@ def run_muscle(input_fasta, output_fasta, muscle_cmd="muscle"):
     ]
     print("Running:", " ".join(cmd))
     # run it, raising an exception on error
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: Muscle alignment failed with error: {e}")
+        sys.exit(1)
 
 
 
