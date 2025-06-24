@@ -209,12 +209,33 @@ def run_muscle(input_fasta, output_fasta, muscle_cmd="muscle"):
     ]
     print("Running:", " ".join(cmd))
     # run it, raising an exception on error
+    # try:
+    #     subprocess.run(cmd, check=True)
+    # except subprocess.CalledProcessError as e:
+    #     print(f"ERROR: Muscle alignment failed with error: {e}")
+    #     sys.exit(1)
     try:
-        subprocess.run(cmd, check=True)
+        # capture both stdout and stderr, and set cwd so muscle.log lands in result_dir
+        result = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(output_fasta)
+        )
+        print(result.stdout)
     except subprocess.CalledProcessError as e:
-        print(f"ERROR: Muscle alignment failed with error: {e}")
+        print(f"ERROR: MUSCLE failed (exit code {e.returncode})")
+        print("=== STDOUT ===")
+        print(e.stdout or "(none)")
+        print("=== STDERR ===")
+        print(e.stderr or "(none)")
+        # Look for “Killed process” or “Cannot allocate memory” in the logs:
+        log_path = os.path.join(os.path.dirname(output_fasta), "muscle.log")
+        if os.path.exists(log_path):
+            print(f"(See {log_path} for full MUSCLE log)")
+        # Optional: check Linux dmesg via `dmesg | tail` to see OOM killer messages
         sys.exit(1)
-
 
 
 # PyMol functions
