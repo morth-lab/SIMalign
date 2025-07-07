@@ -13,8 +13,12 @@ from models import StructureFile, Structure
 
 def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology_search_method="foldseek", max_dist=6, max_rmsd=5, 
              foldseek_databases=["afdb50"], foldseek_mode="tmalign", foldseek_threshold=0.7, numb_templates=20, sequence_identity=0.6, 
-             sequence_cov=0.6, e_value=0.001, redundancy_threshold=0.9, BLOSUM="BLOSUM62", only_core="1"):
+             sequence_cov=0.6, e_value=0.001, redundancy_threshold=0.9, BLOSUM="BLOSUM62", only_core="1", muscle_path=None):
     """Run the SIMalign prediction algorithm."""
+
+    result_dir = os.path.abspath(result_dir)
+    os.makedirs(result_dir, exist_ok=True)
+    
 
     basename = os.path.basename(query).split(".")
     query_file = StructureFile(basename[0], query, basename[1])
@@ -48,8 +52,9 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
             structure_names.append(structure.name)
         sequences_path = os.path.join(result_dir, "sequences.fasta")
         write_fasta(sequences, structure_names, sequences_path)
+
         alignment_file_name = os.path.join(result_dir,"alignment.aln")
-        run_muscle(sequences_path, alignment_file_name)
+        run_muscle(sequences_path, alignment_file_name, muscle_path)
         print("Alignment file created:", alignment_file_name)
         align_dict = alignment_to_dict(alignment_file_name, structures, alignment_format="fasta")
         print("Updating MSA...")

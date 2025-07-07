@@ -3,6 +3,7 @@ import os
 from core import SIMalign
 import sys
 from utils import validate_structure_file, encrypt_key, create_output_dirs
+import shutil
 
 def main():
 
@@ -212,7 +213,10 @@ def main():
         sys.exit(1)
 
 
-
+    # Find MUSCLE binary
+    muscle_path = shutil.which("muscle")
+    if not muscle_path:
+        sys.exit("ERROR: MUSCLE binary not found on PATH")
 
     # Print settings
     print("Running SIMalign with the following settings:")
@@ -233,6 +237,7 @@ def main():
           f"redundancy_threshold = {args.REDUNDANCY_THRESHOLD},",
           f"BLOSUM = {args.BLOSUM}",
           f"only_core = {args.only_core}",
+          f"muscle_path = {muscle_path}",
           sep="\n")
 
     tmp_dir, result_dir = create_output_dirs(args.RESULT_DIR, args.TMP_DIR)
@@ -254,7 +259,8 @@ def main():
              sequence_cov=args.SEQUENCE_COV,
              redundancy_threshold=args.REDUNDANCY_THRESHOLD,
              BLOSUM=args.BLOSUM,
-             only_core=args.only_core
+             only_core=args.only_core,
+             muscle_path=muscle_path
             )
 
 if __name__ == "__main__":
