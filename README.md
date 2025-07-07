@@ -19,6 +19,7 @@ SIMalign is a Python command-line tool for protein structure alignment and hotsp
 ## Installation
 
 ### 1. Clone the repository
+> **Note:** Do **not** include any spaces in the path where you clone the repo.
 
 ```bash
 git clone https://github.com/morth-lab/SIMalign.git
