@@ -16,8 +16,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
              sequence_cov=0.6, e_value=0.001, redundancy_threshold=0.9, BLOSUM="BLOSUM62", only_core="1", muscle_path=None):
     """Run the SIMalign prediction algorithm."""
 
-    result_dir = os.path.abspath(result_dir)
-    os.makedirs(result_dir, exist_ok=True)
+
     
 
     basename = os.path.basename(query).split(".")

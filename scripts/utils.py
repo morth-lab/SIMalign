@@ -49,8 +49,7 @@ def create_output_dirs(result_dir, tmp_dir):
     except OSError as e:
         print(f"ERROR: Could not create directories in {tmp_dir}: {e}")
         sys.exit(1)
-    return tmp_dir, result_dir
-
+    return os.path.abspath(tmp_dir), os.path.abspath(result_dir)
 
 ## Core functions
 

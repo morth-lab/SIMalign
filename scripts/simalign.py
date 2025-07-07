@@ -218,6 +218,7 @@ def main():
     if not muscle_path:
         sys.exit("ERROR: MUSCLE binary not found on PATH")
 
+
     # Print settings
     print("Running SIMalign with the following settings:")
     print(f"Query = {args.QUERY},",
