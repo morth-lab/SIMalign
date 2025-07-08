@@ -733,75 +733,99 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
     return hotspot_list
 
 
-def save_hotspot(hotspot_list, output_dir, structures, mode):
-    doc_name=os.path.join(output_dir,"hotspots_mode_"+str(mode)+".html")
-    doc=open(doc_name,"w")
+
+
+
+
+def save_hotspot(hotspot_list, output_dir, structures, mode, favicon_url="https://raw.githubusercontent.com/morth-lab/SIMalign/main/favicon.ico"):
+    """
+    Save the hotspot report as an HTML file with black background,
+    and color each mutation line based on the average WT-score via color_by_number().
+    """
+    doc_name = os.path.join(output_dir, f"hotspots_mode_{mode}.html")
+    scores = structures[0].score_list  # list of floats between 0 and 1
     
-    doc.write("------------------------------------------------------------------------------")
-    if mode == 1:
-        doc.write("<h1>Printing possible single mutations in "+structures[0].name+"</h1>")
-    elif mode == 2:
-        doc.write("<h1>Printing possible double mutations in "+structures[0].name+"</h1>")
-    doc.write("------------------------------------------------------------------------------")
-    doc.write("<h1>Legend</h1>")
-    doc.write("<p style='color:rgb(209,14,14);'>Red : Mutations into smaller AAs</p>")
-    doc.write("<p style='color:rgb(13,175,73);'>Green: Mutations into larger AAs</p>")
-    doc.write("<p style='color:rgb(235,130,15);'>Orange: Undefined</p>")
-    doc.write("------------------------------------------------------------------------------")
-    printed = set()
-    for hotspot in hotspot_list:
+    with open(doc_name, "w", encoding="utf-8") as doc:
+        # HTML header
+        doc.write(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hotspots Report Mode {mode}</title>
+    <link rel="icon" href="{favicon_url}" type="image/x-icon"/>
+    <style>
+        body {{
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            margin: 1em;
+        }}
+        h1, h2 {{
+            color: white;
+        }}
+        p {{
+            line-height: 1.4;
+        }}
+        hr {{
+            border-color: #444;
+        }}
+    </style>
+</head>
+<body>
+""")
 
-        # Finding unique mutations
-        unique_mutations = {}
-        
-        for i, mutation_list in enumerate(hotspot[1]):
-            if not isinstance(mutation_list[0], str):
-                key = "|".join([x[1] for x in mutation_list])
-                structure_name = structures[i+1].name
+        # Title & legend
+        if mode == 1:
+            doc.write(f"<h1>Possible single mutations in {structures[0].name}</h1>\n")
+        elif mode == 2:
+            doc.write(f"<h1>Possible double mutations in {structures[0].name}</h1>\n")
+        doc.write("<h2>Legend: Each line is colored by its WT similarity score (for double mutations, the two WT scores are averaged).</h2>\n")
+        doc.write("<hr/>\n")
 
-                non_comparable = set()
-                for resi in hotspot[2][i]:
-                    non_comparable.add(resi)
+        # Iterate hotspots
+        for hotspot in hotspot_list:
+            unique_mutations = {}
+            for i, mutation_list in enumerate(hotspot[1]):
+                if not isinstance(mutation_list[0], str):
+                    key = "|".join([x[1] for x in mutation_list])
+                    struct_name = structures[i+1].name
+                    non_comp = set(hotspot[2][i])
+                    if key in unique_mutations:
+                        unique_mutations[key][0].append(struct_name)
+                        unique_mutations[key][1].update(non_comp)
+                    else:
+                        unique_mutations[key] = [[struct_name], non_comp]
 
-                # value = [structure_name, list(non_comparable)]
-                if key in unique_mutations:
-                    unique_mutations[key][0].append(structure_name)
-                    unique_mutations[key][1].update(non_comparable)
-                else:
-                    unique_mutations[key] = [[structure_name], non_comparable]
+            wt_list = hotspot[0]
 
-        wt_list = hotspot[0]
-        
-        
-        for k, v in unique_mutations.items():
-            out_text = ""
-            mutation_resn = k.split("|")
-            mutated_structures = v[0]
-            non_comparable = v[1]
+            for k, (mutated_structs, non_comparable) in unique_mutations.items():
+                # compute average WT-score for this mutation
+                # assume residue numbers in wt_list are 1-based indices into scores[]
+                wt_positions = [resi for resi, _ in wt_list]
+                vals = [scores[pos - 1] for pos in wt_positions]
+                avg_score = sum(vals) / len(vals) if vals else 0.0
 
-            # color based on mutation size
-            if all(bigger_AA(wt[1], mu) for wt, mu in zip(wt_list, mutation_resn)):
-                out_text += "<p style='color:rgb(13,175,73);'>"
-            elif all(bigger_AA(mu, wt[1]) for wt, mu in zip(wt_list, mutation_resn)):
-                out_text += "<p style='color:rgb(209,14,14);'>"
-            else:
-                out_text += "<p style='color:rgb(235,130,15);'>"
-            
-        
-            # write WT residues
-            out_text += ", ".join([x[1]+str(x[0]) for x in wt_list])
-            # write mutation residues
-            out_text += " -> " + ", ".join(mutation_resn)
-            # write non comparable residues
-            if len(non_comparable) > 0:
-                out_text += " | Non-comparable: " + ", ".join([str(x) for x in non_comparable])
-            # write structure origins 
-            out_text += " | Structures with given mutation: " + ", ".join(mutated_structures)
-              
-            doc.write(out_text)
-    doc.write("</p>")
-    doc.write("\n------------------------------------------------------------------------------")
-    doc.close()
+                # map to RGB floats (0–1), then to CSS 0–255 ints
+                r_f, g_f, b_f = color_by_number(avg_score)
+                r, g, b = int(r_f * 255), int(g_f * 255), int(b_f * 255)
+                css_color = f"rgb({r},{g},{b})"
+
+                # build the paragraph
+                out = [f"<p style='color: {css_color};'>"]
+                out.append(", ".join(f"{res}{aa}" for res, aa in wt_list))
+                out.append(" → " + ", ".join(k.split("|")))
+                if non_comparable:
+                    nc = ", ".join(str(x) for x in non_comparable)
+                    out.append(f" | Non-comparable: {nc}")
+                out.append(" | Structures: " + ", ".join(mutated_structs))
+                out.append("</p>\n")
+
+                doc.write("".join(out))
+
+        # HTML footer
+        doc.write("""</body>
+</html>
+""")
 
 # pymol formatting functions
 
