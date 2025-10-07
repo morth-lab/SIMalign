@@ -173,9 +173,8 @@ def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tm
     foldseekAPI = f'curl -X POST -F "q=@{query}" -F "mode={foldseek_mode}"{databases} https://search.foldseek.com/api/ticket'
     result = subprocess.run(foldseekAPI, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        print(result.stdout)
         ticket = result.stdout.split('"')[3]
-        print(ticket)
+        print(f"Foldseek ticket: {ticket}")
     except:
         result = subprocess.run(foldseekAPI, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         ticket = result.stdout.split('"')[3]
