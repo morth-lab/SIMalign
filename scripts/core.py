@@ -42,11 +42,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         print("Superimposing structures...")
         structures = super_impose_structures(structures, max_rmsd, cmd, stored)
 
-        print("Debug")
-        print("cat")
-        os.system(f"cat {sequences_path}")
-        print("manual MUSCLE")
-        os.system(f"/opt/conda/bin/muscle -align {sequences_path} -output {alignment_file_name}")
+
 
 
 
@@ -60,6 +56,13 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         write_fasta(sequences, structure_names, sequences_path)
 
         alignment_file_name = os.path.join(result_dir,"alignment.aln")
+
+        print("Debug")
+        print("cat")
+        os.system(f"cat {sequences_path}")
+        print("manual MUSCLE")
+        os.system(f"/opt/conda/bin/muscle -align {sequences_path} -output {alignment_file_name}")
+
         run_muscle(sequences_path, alignment_file_name, muscle_path)
         print("Alignment file created:", alignment_file_name)
         align_dict = alignment_to_dict(alignment_file_name, structures, alignment_format="fasta")
