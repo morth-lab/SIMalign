@@ -92,34 +92,7 @@ def main():
         default=20,
         help="Number of top performing Foldseek homologs based on (TM or E-value depending on Foldseek mode) that is used in the SIMalign algorithm."
     )
-    parser.add_argument(
-        "-sident",
-        "--SEQUENCE_IDENTITY",
-        type=float,
-        default=0.6,
-        help="Min. sequence identity (between 0-1) for BLASTp."
-    ) 
-    parser.add_argument(
-        "-scov",
-        "--SEQUENCE_COV",
-        type=float,
-        default=0.6,
-        help="Min. sequence coverage (between 0-1) for BLASTp."
-    ) 
-    parser.add_argument(
-        "-e",
-        "--E_VALUE",
-        type=float,
-        default=0.001,
-        help="E-value threshold for BLASTp."
-    )
-    parser.add_argument(
-        "-rt",
-        "--REDUNDANCY_THRESHOLD",
-        type=float,
-        default=0.9,
-        help="Redundancy threshold for removing similar sequences from the BLASTp MSA."
-    )
+
     parser.add_argument(
         "-R",
         "--RESULT_DIR",
@@ -204,10 +177,6 @@ def main():
         print("ERROR: The Foldseek threshold (FOLDSEEK_THRESHOLD) must be between 0.0 and 1.0.")
         sys.exit(1)
 
-    if args.SEQUENCE_IDENTITY < 0.0 or args.SEQUENCE_IDENTITY > 1.0:
-        print("ERROR: The sequence identity (SEQUENCE_IDENTITY) must be between 0.0 and 1.0.")
-        sys.exit(1)
-
     if args.NUMB_TEMPLATES < 2:
         print("ERROR: Please use 2 or more template files. NUMB_TEMPLATES must be greater than 2.")
         sys.exit(1)
@@ -233,9 +202,6 @@ def main():
           f"foldseek_mode = {args.FOLDSEEK_MODE},",
           f"foldseek_threshold = {args.FOLDSEEK_THRESHOLD},",
           f"numb_templates = {args.NUMB_TEMPLATES},",
-          f"sequence_identity = {args.SEQUENCE_IDENTITY},",
-          f"sequence_cov = {args.SEQUENCE_COV},",
-          f"redundancy_threshold = {args.REDUNDANCY_THRESHOLD},",
           f"BLOSUM = {args.BLOSUM}",
           f"only_core = {args.only_core}",
           f"muscle_path = {muscle_path}",
@@ -256,9 +222,6 @@ def main():
              foldseek_mode=args.FOLDSEEK_MODE,
              foldseek_threshold=args.FOLDSEEK_THRESHOLD,
              numb_templates=args.NUMB_TEMPLATES,
-             sequence_identity=args.SEQUENCE_IDENTITY,
-             sequence_cov=args.SEQUENCE_COV,
-             redundancy_threshold=args.REDUNDANCY_THRESHOLD,
              BLOSUM=args.BLOSUM,
              only_core=args.only_core,
              muscle_path=muscle_path

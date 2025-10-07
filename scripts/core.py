@@ -12,8 +12,7 @@ from models import StructureFile, Structure
 
 
 def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology_search_method="foldseek", max_dist=6, max_rmsd=5, 
-             foldseek_databases=["afdb50"], foldseek_mode="tmalign", foldseek_threshold=0.7, numb_templates=20, sequence_identity=0.6, 
-             sequence_cov=0.6, e_value=0.001, redundancy_threshold=0.9, BLOSUM="BLOSUM62", only_core="1", muscle_path=None):
+             foldseek_databases=["afdb50"], foldseek_mode="tmalign", foldseek_threshold=0.7, numb_templates=20, BLOSUM="BLOSUM62", only_core="1", muscle_path=None):
     """Run the SIMalign prediction algorithm."""
 
 
