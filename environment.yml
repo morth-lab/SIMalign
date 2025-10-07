@@ -9,6 +9,7 @@ dependencies:
   - pandas=2.2.3
   - scipy=1.14.1
   - pymol-open-source=3.0.0
+  - curl
   - pip
   - pip:
       - biopython

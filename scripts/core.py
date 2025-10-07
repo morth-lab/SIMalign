@@ -62,6 +62,8 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         os.system(f"cat {sequences_path}")
         print("manual MUSCLE")
         os.system(f"/opt/conda/bin/muscle -align {sequences_path} -output {alignment_file_name}")
+        os.system(f"cat {alignment_file_name}")
+        print("End Debug")
 
         run_muscle(sequences_path, alignment_file_name, muscle_path)
         print("Alignment file created:", alignment_file_name)
