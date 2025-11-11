@@ -16,6 +16,11 @@ from Bio import AlignIO
 
 ## Main functions
 
+def log_message(log_file_path,message):
+    with open(log_file_path, "a") as log_file:
+        log_file.write(message + "\n")
+
+
 def encrypt_key():
     """Generate a random 6-character job key."""
     key = ""
@@ -35,30 +40,32 @@ def validate_structure_file(file_path):
             continue
     return False
 
+
+
 def create_output_dirs(result_dir, tmp_dir):
     """Create output directories for results and temporary files."""
     try:
         if not os.path.exists(result_dir):
             os.makedirs(result_dir, exist_ok=True)
     except OSError as e:
-        print(f"ERROR: Could not create directories in {result_dir}: {e}")
+        print(f'<p style="color:red;"><b>ERROR:</b> Could not create directories in {result_dir}: {e}</p>')
         sys.exit(1)
     try:
         if not os.path.exists(tmp_dir):
             os.makedirs(tmp_dir, exist_ok=True)
     except OSError as e:
-        print(f"ERROR: Could not create directories in {tmp_dir}: {e}")
+        print(f'<p style="color:red;"><b>ERROR:</b> Could not create directories in {tmp_dir}: {e}</p>')
         sys.exit(1)
     return os.path.abspath(tmp_dir), os.path.abspath(result_dir)
 
 ## Core functions
 
 
-def download_AF_structure(name,outfolder):
+def download_AF_structure(name,outfolder,log_file_path):
     name = name.split(" ")[0].split(".")[0]
     type = "pdb"
     url = "https://alphafold.ebi.ac.uk/files/"+name+"."+type
-    print(f"\tDownloading {name}")
+    log_message(log_file_path, f"Downloading {name} from AlphaFold DB...")
     os.system(f"wget -P {outfolder} {url}")
     return os.path.join(outfolder, name+"."+type)
 
@@ -127,7 +134,7 @@ def dist_points(coord1, coord2):
 
 # Foldseek functions
 
-def extract_highest_results(tresshold, number_of_templates, tmp_dir, result_dir, foldseek_mode):
+def extract_highest_results(tresshold, number_of_templates, tmp_dir, result_dir, foldseek_mode, log_file_path):
     """
     Extract highest results from foldseek
 
@@ -154,19 +161,19 @@ def extract_highest_results(tresshold, number_of_templates, tmp_dir, result_dir,
             if (float(score) > tresshold and foldseek_mode == "tmalign") or (float(score) < tresshold and foldseek_mode == "3diaa"):
                 file_location = None
                 if name.startswith("AF"):
-                    file_location = download_AF_structure(name,result_dir)
+                    file_location = download_AF_structure(name,result_dir,log_file_path)
                     type = os.path.basename(file_location).split(".")[-1]
                 else:
                     name = name.split("-")[0]
                     type = "PDB"
                 template_files.append(StructureFile(name, file_location, type))
             elif len(template_files) < 2:
-                print("\033[1;35mError: Not enough template structure files were downloaded!\033[0m")
+                print(f'<p style="color:red;"><b>ERROR:</b> Not enough template structure files were downloaded!</p>')
                 break
     return template_files
 
 
-def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tmp_dir, foldseek_threshold, numb_templates):
+def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tmp_dir, foldseek_threshold, numb_templates, log_file_path):
     databases = ""
     for database in foldseek_databases:
         databases += f' -F "database[]={database}"'
@@ -174,7 +181,7 @@ def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tm
     result = subprocess.run(foldseekAPI, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         ticket = result.stdout.split('"')[3]
-        print(f"Foldseek ticket: {ticket}")
+        log_message(log_file_path, f"Foldseek ticket: {ticket}")
     except:
         result = subprocess.run(foldseekAPI, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         ticket = result.stdout.split('"')[3]
@@ -193,121 +200,29 @@ def foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tm
     os.system(f"wget {url} -O {tmp_dir}.tar.gz")
     os.system(f"tar -xzvf {tmp_dir}.tar.gz -C {tmp_dir}")
     os.system(f"rm {tmp_dir}.tar.gz")
-    return extract_highest_results(float(foldseek_threshold), int(numb_templates), tmp_dir, result_dir, foldseek_mode)   
+    return extract_highest_results(float(foldseek_threshold), int(numb_templates), tmp_dir, result_dir, foldseek_mode, log_file_path)   
 
 
-# BLASTp functions
 
 import shutil, sys, subprocess, os
 
 
-
-def run_muscle(input_fasta, output_fasta, muscle_cmd):
+def run_muscle(input_fasta, output_fasta, muscle_cmd, log_file_path):
     cmd = [muscle_cmd, "-align", input_fasta, "-output", output_fasta]
-    print("Running:", " ".join(cmd))
+    log_message(log_file_path, "Running:", " ".join(cmd))
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True,
                        cwd=os.path.dirname(output_fasta))
     except subprocess.CalledProcessError as e:
-        print(f"ERROR: MUSCLE failed (exit {e.returncode})")
-        print("STDOUT:", e.stdout or "(none)")
-        print("STDERR:", e.stderr or "(none)")
+        print(f'<p style="color:red;"><b>ERROR:</b> MUSCLE failed (exit {e.returncode})</p>')
+
         sys.exit(1)
 
 
 
-# def run_muscle(input_fasta, output_fasta, muscle_cmd="muscle"):
-
-#     try:
-#         path = subprocess.check_output(
-#             ["which", "muscle"],
-#             stderr=subprocess.STDOUT,
-#             text=True
-#         ).strip()
-#         print(f"Found MUSCLE at: {path}")
-#     except subprocess.CalledProcessError:
-#         print("MUSCLE not found on PATH")
-
-
-#     # Version
-#     print(subprocess.run(
-#         ["/opt/conda/bin/muscle", "-version"],
-#         capture_output=True, text=True
-#     ).stdout)
-
-#     # Help text
-#     help = subprocess.run(
-#         ["/opt/conda/bin/muscle", "-help"],
-#         capture_output=True, text=True
-#     )
-#     print(help.stdout or help.stderr)
-
-#     # cmd = [
-#     #     muscle_cmd,
-#     #     "-in",  input_fasta,
-#     #     "-out", output_fasta
-#     # ]
-#     # print("Running:", " ".join(cmd))
-#     # try:
-#     #     # capture stdout/stderr so you’ll see any real errors
-#     #     result = subprocess.run(
-#     #         cmd,
-#     #         check=True,
-#     #         capture_output=True,
-#     #         text=True,
-#     #         cwd=os.path.dirname(output_fasta)
-#     #     )
-#     #     print(result.stdout)  # optional: show progress output
-#     # except subprocess.CalledProcessError as e:
-#     #     print(f"ERROR: MUSCLE failed (exit code {e.returncode})")
-#     #     print("=== STDOUT ===")
-#     #     print(e.stdout or "(none)")
-#     #     print("=== STDERR ===")
-#     #     print(e.stderr or "(none)")
-#     #     log_path = os.path.join(os.path.dirname(output_fasta), "muscle.log")
-#     #     if os.path.exists(log_path):
-#     #         print(f"(See full log at {log_path})")
-#     #     sys.exit(1)
-
-#     cmd = [
-#         muscle_cmd,
-#         "-align",   input_fasta,
-#         "-output",  output_fasta
-#     ]
-#     print("Running:", " ".join(cmd))
-#     # run it, raising an exception on error
-#     # try:
-#     #     subprocess.run(cmd, check=True)
-#     # except subprocess.CalledProcessError as e:
-#     #     print(f"ERROR: Muscle alignment failed with error: {e}")
-#     #     sys.exit(1)
-#     try:
-#         # capture both stdout and stderr, and set cwd so muscle.log lands in result_dir
-#         result = subprocess.run(
-#             cmd,
-#             check=True,
-#             capture_output=True,
-#             text=True,
-#             cwd=os.path.dirname(output_fasta)
-#         )
-#         print(result.stdout)
-#     except subprocess.CalledProcessError as e:
-#         print(f"ERROR: MUSCLE failed (exit code {e.returncode})")
-#         print("=== STDOUT ===")
-#         print(e.stdout or "(none)")
-#         print("=== STDERR ===")
-#         print(e.stderr or "(none)")
-#         # Look for “Killed process” or “Cannot allocate memory” in the logs:
-#         log_path = os.path.join(os.path.dirname(output_fasta), "muscle.log")
-#         if os.path.exists(log_path):
-#             print(f"(See {log_path} for full MUSCLE log)")
-#         # Optional: check Linux dmesg via `dmesg | tail` to see OOM killer messages
-#         sys.exit(1)
-
-
 # PyMol functions
 
-def loading_structures_to_pymol(structure_files,query,cmd,stored):
+def loading_structures_to_pymol(structure_files,query,cmd,stored,log_file_path):
             
     cmd.reinitialize()
     for file in structure_files:
@@ -319,10 +234,10 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored):
         if name == "PDB":
             try:
                 cmd.fetch(name)
-                print(f"\tFetched: {name}")
+                log_message(log_file_path, f"\tFetched: {name}")
                 Structure(name,cmd,stored).validate_structure_format()
             except Exception as e:
-                print(f"Fetch ERROR: {name} could not be fetched to PyMOL. Error: {e}")
+                print(f'<p style="color:red;"><b>ERROR:</b> {name} could not be fetched to PyMOL</p>')
 
         # Loading structures from paths
         else:
@@ -334,16 +249,16 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored):
             
             # Check if the file exists at the specified path
             if not os.path.isfile(normalized_path):
-                print(f"Error: File not found at {normalized_path}")
+                print(f'<p style="color:red;"><b>ERROR:</b> File not found at {normalized_path})</p>')
                 continue
             
             try:
                 # Load the structure in PyMOL using the normalized path and name
                 cmd.load(normalized_path, name)
-                print(f"\tLoaded: {name} from {normalized_path}")
+                log_message(log_file_path, f"\tLoaded: {name} from {normalized_path}")
                 Structure(name,cmd,stored).validate_structure_format()
             except Exception as e:
-                print(f"Import ERROR: {normalized_path} could not be loaded in PyMOL. Error: {e}")
+                print(f'<p style="color:red;"><b>ERROR:</b> {normalized_path} could not be loaded in PyMOL.)</p>')
 
     structures = []
     for struc in cmd.get_object_list():
@@ -352,7 +267,7 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored):
     return structures
 
 
-def super_impose_structures(structures, max_rmsd, cmd, stored):
+def super_impose_structures(structures, max_rmsd, cmd, stored, log_file_path):
     """
     Superimpose structures to query_structure
 
@@ -367,14 +282,14 @@ def super_impose_structures(structures, max_rmsd, cmd, stored):
         # super = cmd.super(target=query_structure.first_chain,mobile=struc.first_chain,object="aln")
         super = cmd.super(target=query_structure.first_chain, mobile=struc.first_chain)
         if super[0] > max_rmsd:
-            print(f"\033[35m\tStructure {struc.name} was deleted because the RMSD to {query_structure.name} was above {max_rmsd}Å: {super[0]}Å\033[0m")
+            log_message(log_file_path, f"[WAR] Structure {struc.name} was deleted because the RMSD to {query_structure.name} was above {max_rmsd}Å: {super[0]}Å")
             cmd.delete(struc.name)
         elif super[1] < 100:
-            print(f"\033[35m\tStructure {struc.name} was deleted because number of aligned atoms to {query_structure.name} was below 100: Aligned atoms={super[1]}\033[0m")
+            log_message(log_file_path, f"[WAR] Structure {struc.name} was deleted because number of aligned atoms to {query_structure.name} was below 100: Aligned atoms={super[1]}]")
             cmd.delete(struc.name)
         else:
-            print(f"\t{struc.name} was superimposed with: RMSD={round(super[0],3)}Å, Aligned atoms={super[1]}")
-
+            log_message(log_file_path, f"{struc.name} was superimposed with: RMSD={round(super[0],3)}Å, Aligned atoms={super[1]}")
+           
     # Update structures after super impostion
     structures = []
     for struc in cmd.get_object_list():
@@ -881,11 +796,11 @@ def select_hotspots_in_pymol(hotspot_list, structures, cmd):
 
 
 
-def format_pymol(structures, hotspot_list, cmd):
+def format_pymol(structures, hotspot_list, cmd, log_file_path):
     cmd.hide("everything","all")
     for structure in structures:
         cmd.show("cartoon",structure.first_chain)
-        print(f"\tColoring {structure.name}")
+        log_message(log_file_path, f"\tColoring {structure.name}")
         color_structure(structure,cmd)
     cmd.hide("cgo", "aln")
     cmd.set("seq_view_label_mode", "1")
