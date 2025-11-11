@@ -209,7 +209,7 @@ import shutil, sys, subprocess, os
 
 def run_muscle(input_fasta, output_fasta, muscle_cmd, log_file_path):
     cmd = [muscle_cmd, "-align", input_fasta, "-output", output_fasta]
-    log_message(log_file_path, "Running:", " ".join(cmd))
+    log_message(log_file_path, "Running: "+" ".join(cmd))
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True,
                        cwd=os.path.dirname(output_fasta))
