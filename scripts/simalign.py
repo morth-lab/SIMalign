@@ -193,6 +193,7 @@ def main():
 
     tmp_dir, result_dir = create_output_dirs(args.RESULT_DIR, args.TMP_DIR)
     zip_file_path = os.path.join(result_dir, f"{job_key}_simalign")
+    os.makedirs(zip_file_path, exist_ok=True)
     log_file_path = os.path.join(zip_file_path, f"{args.JOB_KEY}_log.txt")
 
     settings = [
