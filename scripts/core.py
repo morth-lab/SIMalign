@@ -106,3 +106,10 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         cmd.save(os.path.join(result_dir,"SIMalign_"+job_key+".pse"))
 
         print(f"Results saved in the folder: {result_dir}")
+
+        import shutil
+
+        shutil.make_archive(result_dir, 'zip', result_dir)
+        
+
+        print(f'<a href="{result_dir}.zip" download>Download here</a>')
