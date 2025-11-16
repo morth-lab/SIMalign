@@ -2,7 +2,7 @@ import argparse
 import os
 from core import SIMalign
 import sys
-from utils import validate_structure_file, encrypt_key, create_output_dirs, log_message
+from utils import validate_structure_file, encrypt_key, create_output_dirs
 import shutil
 
 def main():
@@ -132,18 +132,15 @@ def main():
         new_query_path = args.QUERY
         os.rename(old_query_path, new_query_path)
 
-
-                
-
     # Validate arguments and inputs
     if not validate_structure_file(args.QUERY):
-        print(f'<p style="color:red;"><b>ERROR:</b> Could not open or read query file</p>')
+        print(f"ERROR: The query file {args.QUERY} must be of either .pdb or .cif format.")
         sys.exit(1)
 
 
     if args.HOMOLOGY_SEARCH_METHOD == "user_specified":
         if args.TEMPLATES is None and args.TEMPLATES_DIR is None:
-            print(f'<p style="color:red;"><b>ERROR:</b> Please provide either a list of template files or a directory containing template files when using user-specified homology search method.</p>')
+            print("ERROR: Please provide either a list of template files or a directory containing template files when using user-specified homology search method.")
             sys.exit(1)
         elif args.TEMPLATES is not None:
             templates = args.TEMPLATES
@@ -158,62 +155,57 @@ def main():
         else:
             templates = [os.path.join(args.TEMPLATES_DIR, temp_file) for temp_file in os.listdir(args.TEMPLATES_DIR)]
         if len(templates) < 2:
-            print(f'<p style="color:red;"><b>ERROR:</b> Please provide 2 or more template files when using user-specified homology search method.</p>')
+            print("ERROR: Please provide 2 or more template files when using user-specified homology search method.")
             sys.exit(1)
         for temp_file in templates:
             if not validate_structure_file(temp_file):
-                print(f'<p style="color:red;"><b>ERROR:</b> Could not open or read {temp_file}</p>')
+                print(f"ERROR: {temp_file} must be of either .pdb or .cif format.")
                 sys.exit(1)
     else:
         templates = None
 
 
     if args.MAX_DISTANCE <= 0:
-        print(f'<p style="color:red;"><b>ERROR:</b> The maximum sequence distance parameter (MAX_DISTANCE) must be greater than 0.</p>')
+        print("ERROR: The maximum sequence distance parameter (MAX_DISTANCE) must be greater than 0.")
         sys.exit(1)
 
     if args.MAX_RMSD <= 0:
-        print(f'<p style="color:red;"><b>ERROR:</b> The RMSD threshold (MAX_RMSD) must be greater than 0.</p>')
+        print("ERROR: The RMSD threshold (MAX_RMSD) must be greater than 0.")
         sys.exit(1)
 
     if not (0.0 <= args.FOLDSEEK_THRESHOLD <= 1.0):
-        print(f'<p style="color:red;"><b>ERROR:</b> The Foldseek threshold (FOLDSEEK_THRESHOLD) must be between 0.0 and 1.0.</p>')
+        print("ERROR: The Foldseek threshold (FOLDSEEK_THRESHOLD) must be between 0.0 and 1.0.")
         sys.exit(1)
 
     if args.NUMB_TEMPLATES < 2:
-        print(f'<p style="color:red;"><b>ERROR:</b> Please use 2 or more template files. NUMB_TEMPLATES must be greater than 2.</p>')
+        print("ERROR: Please use 2 or more template files. NUMB_TEMPLATES must be greater than 2.")
         sys.exit(1)
 
 
     # Find MUSCLE binary
     muscle_path = shutil.which("muscle")
     if not muscle_path:
-        print(f'<p style="color:red;"><b>ERROR:</b> MUSCLE binary not found on PATH</p>')
-        sys.exit(1)
+        sys.exit("ERROR: MUSCLE binary not found on PATH")
 
-    log_file_path = os.path.join(args.RESULT_DIR, f"{args.JOB_KEY}_log.txt")
 
-    settings = [
-        "SIMalign run settings:",
-        f"Query = {args.QUERY}",
-        f"job_key = {args.JOB_KEY}",
-        f"result_dir = {args.RESULT_DIR}",
-        f"tmp_dir = {args.TMP_DIR}",
-        f"templates = {templates}",
-        f"homology_search_method = {args.HOMOLOGY_SEARCH_METHOD}",
-        f"max_dist = {args.MAX_DISTANCE}",
-        f"max_rmsd = {args.MAX_RMSD}",
-        f"foldseek_databases = {args.FOLDSEEK_DATABASES}",
-        f"foldseek_mode = {args.FOLDSEEK_MODE}",
-        f"foldseek_threshold = {args.FOLDSEEK_THRESHOLD}",
-        f"numb_templates = {args.NUMB_TEMPLATES}",
-        f"BLOSUM = {args.BLOSUM}",
-        f"only_core = {args.only_core}",
-        f"muscle_path = {muscle_path}",
-        f"log_file_path = {log_file_path}"
-    ]
-    log_message(log_file_path, "\n".join(settings))
-
+    # Print settings
+    print("Running SIMalign with the following settings:")
+    print(f"Query = {args.QUERY},",
+          f"job_key = {args.JOB_KEY},",
+          f"result_dir = {args.RESULT_DIR}",
+          f"tmp_dir = {args.TMP_DIR}",
+          f"templates = {templates},",
+          f"homology_search_method = {args.HOMOLOGY_SEARCH_METHOD},",
+          f"max_dist = {args.MAX_DISTANCE},",
+          f"max_rmsd = {args.MAX_RMSD},",
+          f"foldseek_databases = {args.FOLDSEEK_DATABASES},",
+          f"foldseek_mode = {args.FOLDSEEK_MODE},",
+          f"foldseek_threshold = {args.FOLDSEEK_THRESHOLD},",
+          f"numb_templates = {args.NUMB_TEMPLATES},",
+          f"BLOSUM = {args.BLOSUM}",
+          f"only_core = {args.only_core}",
+          f"muscle_path = {muscle_path}",
+          sep="\n")
 
     tmp_dir, result_dir = create_output_dirs(args.RESULT_DIR, args.TMP_DIR)
 
@@ -232,8 +224,7 @@ def main():
              numb_templates=args.NUMB_TEMPLATES,
              BLOSUM=args.BLOSUM,
              only_core=args.only_core,
-             muscle_path=muscle_path,
-             log_file_path=log_file_path
+             muscle_path=muscle_path
             )
 
 if __name__ == "__main__":
