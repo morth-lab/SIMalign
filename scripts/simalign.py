@@ -243,7 +243,7 @@ def main():
     shutil.make_archive(zip_file_path, 'zip', zip_file_path)
     print("9")
     log_message(log_file_path, f"Results saved zip file: {zip_file_path}.zip")
-    print(f"<a href={zip_file_path}.zip>Download her</a>")
+    print(f'<a href="{zip_file_path}.zip" download>Download her</a>')
 
 
 if __name__ == "__main__":
