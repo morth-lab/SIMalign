@@ -241,12 +241,12 @@ def main():
 
     
     shutil.make_archive(zip_file_path, 'zip', zip_file_path)
-    print("9")
     log_message(log_file_path, f"Results saved zip file: {zip_file_path}.zip")
 
     document_root = "/var/www/services"
     download_path = zip_file_path.replace(document_root, "")
-    print(f'<a href="{download_path}.zip" download>Download her</a>')
+    print('<img src="https://raw.githubusercontent.com/morth-lab/SIMalign/main/logo.png" width="200">')
+    print(f'<a href="{download_path}.zip" download>Download here</a>')
 
 
 if __name__ == "__main__":

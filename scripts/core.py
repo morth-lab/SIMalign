@@ -30,7 +30,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         structure_files += foldseek_API_search(foldseek_mode, foldseek_databases, query, result_dir, tmp_dir, foldseek_threshold, numb_templates, log_file_path)
      
 
-    print("1")
+
     with pymol2.PyMOL() as pymol:
         cmd = pymol.cmd
         stored = pymol.stored
@@ -40,7 +40,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         log_message(log_file_path, "Superimposing structures...")
         structures = super_impose_structures(structures, max_rmsd, cmd, stored, log_file_path)
 
-        print("2")
+
         log_message(log_file_path, "Updating sequence alignment...")
         structure_names = []
         sequences = []
@@ -49,7 +49,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
             structure_names.append(structure.name)
         sequences_path = os.path.join(result_dir, "sequences.fasta")
         write_fasta(sequences, structure_names, sequences_path)
-        print("3")
+
         alignment_file_name = os.path.join(result_dir,"alignment.aln")
 
 
@@ -59,7 +59,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         align_dict = alignment_to_dict(alignment_file_name, structures, alignment_format="fasta")
         log_message(log_file_path, "Updating MSA...")
         align_dict = update_msa(align_dict, structures, cmd, threshold=max_dist)
-        print("4")
+
         log_message(log_file_path, "Updating alignment in PyMOL...")
 
         update_alignment_in_pymol(align_dict, cmd, structure_names)
@@ -70,7 +70,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         structures, align = calculate_similarity_score(structures, max_dist, cmd, BLOSUM, alignment_file_name)
 
         save_scores_as_json(structures, result_dir)
-        print("5")
+
         log_message(log_file_path, "Finding hotspots...")
         align = AlignIO.read(alignment_file_name,"clustal")
         neighborAA_list, core, core_index = get_neighborAA(structures, align, cmd, only_core)
@@ -81,15 +81,15 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         # Finding single mutations
         hotspot_list_single = finding_hotspots(neighborAA_list, align, structures, core, core_index, only_core, mode=1)
             
-        hotspot_list = hotspot_list_double + hotspot_list_single
+        hotspot_list = hotspot_list_single + hotspot_list_double
         
-        print("6")
+
         save_hotspot(hotspot_list_double, result_dir, structures, mode=2)
         save_hotspot(hotspot_list_single, result_dir, structures, mode=1)
 
 
         log_message(log_file_path, "Formatting PyMOL session...")
         format_pymol(structures, hotspot_list, cmd, log_file_path)
-        print("7")
+  
         cmd.save(os.path.join(result_dir,"SIMalign_"+job_key+".pse"))
-        print("8")
+ 
