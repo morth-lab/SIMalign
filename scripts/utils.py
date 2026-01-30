@@ -70,36 +70,7 @@ def download_AF_structure(name,outfolder,log_file_path):
     return os.path.join(outfolder, name+"."+type)
 
 
-def threeletter2oneletter(AA):
-    """
-    Convert three letter amino acid to one letter amino acid
-    """
-    try:
-        amino_acid_translation = {
-            'ALA': 'A',
-            'ARG': 'R',
-            'ASN': 'N',
-            'ASP': 'D',
-            'CYS': 'C',
-            'GLU': 'E',
-            'GLN': 'Q',
-            'GLY': 'G',
-            'HIS': 'H',
-            'ILE': 'I',
-            'LEU': 'L',
-            'LYS': 'K',
-            'MET': 'M',
-            'PHE': 'F',
-            'PRO': 'P',
-            'SER': 'S',
-            'THR': 'T',
-            'TRP': 'W',
-            'TYR': 'Y',
-            'VAL': 'V',
-            'MSE': 'M'}
-        return amino_acid_translation[AA]
-    except:
-        return None
+from models import threeletter2oneletter
 
 def aa_to_blosum_score(resn1,resn2,BLOSUM):
     index1 = BLOSUM.alphabet.index(threeletter2oneletter(resn1))
@@ -302,7 +273,7 @@ def super_impose_structures(structures, max_rmsd, cmd, stored, log_file_path):
 
 
 
-def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string, alignment_file_name):
+def calculate_similarity_score(structures, max_dist, cmd, BLOSUM_string):
 
 
 
@@ -723,6 +694,7 @@ tr:hover{{background:rgba(255,255,255,.06)}}
             )
 
         doc.write(footer)
+    return rows
 
 
 
@@ -753,35 +725,50 @@ def color_structure(structure, cmd):
             cmd.color(color_name, f"resi {atom.resi} and {structure.first_chain}")
 
 
-def select_hotspots_in_pymol(hotspot_list, structures, cmd):
-    count = 1
-    for hotspot in hotspot_list:
-        selection_string = f"({structures[0].first_chain} and ("
-        resi_lists = [list(hotspot[0])]
-        resi_lists.extend(hotspot[1])
-        non_comparable = set()
-        for non_comp in hotspot[2]:
-            non_comparable.update(non_comp)
-        if non_comparable != set():
-            for non_comp in list(non_comparable):
-                selection_string += f"resi {non_comp} or "
-            selection_string = selection_string[:-4]+")) or ("
-        else:
-            selection_string = "("
-        for i, resi_list in enumerate(resi_lists):
-            if not isinstance(resi_list[0], str):
-                selection_string += f"{structures[i].first_chain} and ("
-                for resi in resi_list:
-                    selection_string += f"resi {resi[0]} or "
-                selection_string = selection_string[:-4]+")) or ("
-        selection_string = selection_string[:-5]
-        cmd.select(f"hotspot_{str(count)}", selection_string)
-        count += 1
-            
 
 
+def select_hotspots_in_pymol(printed_hotspots, structures, align, cmd, mode=1):
+    if mode == 1:
+        mode_str = "single"
+    elif mode == 2:
+        mode_str = "double"
+    for idx, (_, wt_txt, _, structs, neigh) in enumerate(printed_hotspots, start=1):
+        wt_resi = [x[:-1] for x in wt_txt.split(", ")]
+        neigh = [str(r) for r in sorted(neigh)]
+        wt_selection = "resi " + " or resi ".join(wt_resi + neigh)
+        selection_string = f"({structures[0].first_chain} and ({wt_selection}))"
+        for homolog_name in structs:
+            index, s = next((i, s) for i, s in enumerate(structures) if s.name == homolog_name)
+            homolog_first_chain = s.first_chain
+            selection_string += f" or (({homolog_first_chain} and ("
+            h_list = []
+            for res in wt_resi:
+                # print("RES:", res)
+                # print("ALIGN[0]:", align[0].seq)
+                # print("STRUCTURES[0]:", structures[0].model.atom)
+                # print(structures[0].model.atom[95].resi, structures[0].model.atom[95].resn)
+                h_idx = resi_to_index(int(res), align[0], structures[0].model.atom)
+                h_res = index_to_resi(h_idx, align[index], s.model.atom)
+                # print(idx)
+                h_list.append(str(h_res))
+            # print(h_list)
 
-def format_pymol(structures, hotspot_list, cmd, log_file_path):
+            selection_string += f"resi {' or resi '.join(h_list)}"
+            selection_string += ")))"
+
+        cmd.select(f"{mode_str}_mut_{str(idx)}", selection_string)
+
+
+# def resi_to_index(residue,align_seq,atomsCA):
+#     count = 0
+#     for index, AA in enumerate(align_seq.seq):
+#         if AA != "-":
+#             if int(atomsCA[count].resi) == residue:
+#                 return index
+#             count += 1
+
+
+def format_pymol(structures, cmd, log_file_path):
     cmd.hide("everything","all")
     for structure in structures:
         cmd.show("cartoon",structure.first_chain)
@@ -789,7 +776,6 @@ def format_pymol(structures, hotspot_list, cmd, log_file_path):
         color_structure(structure,cmd)
     cmd.hide("cgo", "aln")
     cmd.set("seq_view_label_mode", "1")
-    select_hotspots_in_pymol(hotspot_list, structures, cmd)
     
 
 
@@ -869,14 +855,191 @@ def update_msa(msa_dicts, structures, cmd, threshold=6.0):
 
 
     # --- Split too-distant columns into clusters ---
-    refined = []
+    splited = []
     for col in msa_dicts:
         clusters = cluster_column(col, structures, threshold, index_to_pos_dicts)
         for cl in clusters:
-            refined.append({s: r for s, r in cl})
+            splited.append({s: r for s, r in cl})
+
+    # --- Merge close clusters ---
+    deleted_indices = set()
+    centers = []  # list of numpy arrays of cluster centroids
+    cluster_score = []  # list of SIMalign scores for each cluster
+    # index_list = []  # list of indices in refined corresponding to each cluster in splited
+    for i, col in enumerate(splited):
+        # determine center and score
+        clust_len = len(list(col.keys()))
+        coords = []
+        score = 0
+        for struc_name, atom_index in col.items():
+            atom = get_atom(structures, struc_name, atom_index, index_to_pos_dicts)
+            coords.append(atom.coord)
+            # print(struc_name, index_to_pos_dicts[atom_index])
+            struc_index, struc = get_structure_by_name(structures, struc_name)
+            # print(struc_index, struc.name, index_to_pos_dicts[struc_index][atom_index])
+            # print(struc.score_list)
+            score += struc.score_list[index_to_pos_dicts[struc_index][atom_index]] / np.sqrt(clust_len)
+        center = np.mean(np.array(coords), axis=0)
+        centers.append(center)
+        cluster_score.append(score)
+        # index_list.append(i)
+    # Sort by cluster_score (highest first)
+    sorted_indices = sorted(range(len(cluster_score)), key=lambda i: cluster_score[i], reverse=True)
+    struc_len = len(structures)
+    # print(splited)
+    # Iderate through clusters in order of SIMalign score, merging nearest neighbors
+    # for i in sorted_indices:
+    #     col = splited[i]
+    #     if struc_len != len(col):
+    #         col_center = centers[i]
+    #         closest_center_idx, closest_dist = get_closest_center(i, col_center, centers)
+    #         if closest_dist < threshold:  # threshold for merging
+    #             col_to_merge = splited[closest_center_idx]
+    #             if col.keys().isdisjoint(col_to_merge.keys()):
+    #                 # k1, p1 = next(iter(col.items()))
+    #                 # k2, p2 = next(iter(col_to_merge.items()))
+    #                 if check_alignment_order(splited, col, col_to_merge):
+    #                     # Merge col into col_to_merge
+    #                     col_to_merge.update(col)
+    #                     splited[i] = {}  # mark for deletion
+    #                     deleted_indices.add(i)
+
+    for i in sorted_indices:
+        col = splited[i]
+        # print(f"\n--- Checking column index {i} ---")
+        # print(f"Column content: {col}")
+
+        if struc_len != len(col):
+            # print(f"Length mismatch (len={len(col)} vs struc_len={struc_len}) → candidate for merging")
+
+            col_center = centers[i]
+            # print(f"Center of this column: {col_center}")
+
+            closest_center_idx, closest_dist = get_closest_center(i, col_center, centers)
+            # print(f"Closest center index: {closest_center_idx}, distance: {closest_dist:.3f}")
+
+            if closest_dist < threshold:
+                # print(f"Distance {closest_dist:.3f} < threshold {threshold} → merge candidate")
+
+                col_to_merge = splited[closest_center_idx]
+                # print(f"Target column content: {col_to_merge}")
+
+                if col.keys().isdisjoint(col_to_merge.keys()):
+                    # print("No overlapping keys → safe to consider merging")
+
+                    ok = check_alignment_order(splited, col, col_to_merge)
+                    # print(f"Alignment order check: {ok}")
+
+                    if ok:
+                        # print(f"✅ Merging column {i} into column {closest_center_idx}")
+                        col_to_merge.update(col)
+                        coords = []
+                        for struc_name, atom_index in col_to_merge.items():
+                            atom = get_atom(structures, struc_name, atom_index, index_to_pos_dicts)
+                            coords.append(atom.coord)
+                        centers[closest_center_idx] = np.mean(np.array(coords), axis=0)
+                        splited[i] = {}  # mark for deletion
+                        centers[i] = np.array([float('inf'), float('inf'), float('inf')])  # prevent re-selection
+                        deleted_indices.add(i)
+
+        for struc_name, atom_index in col.items():
+            atom = get_atom(structures, struc_name, atom_index, index_to_pos_dicts)
+            coords.append(atom.coord)
+            # print(struc_name, index_to_pos_dicts[atom_index])
+            struc_index, struc = get_structure_by_name(structures, struc_name)
+            # print(struc_index, struc.name, index_to_pos_dicts[struc_index][atom_index])
+            # print(struc.score_list)
+            score += struc.score_list[index_to_pos_dicts[struc_index][atom_index]] / np.sqrt(clust_len)
+        center = np.mean(np.array(coords), axis=0)
+
+
+    # Remove deleted columns
+    refined = [col for i, col in enumerate(splited) if i not in deleted_indices]
+
+
+
+    # print(structures[0].name)
+    # for key, value in index_to_pos_dicts[0].items():
+    #     if value == 238:
+    #         r0 = key
+    #         print(r0)
+    # print(structures[2].name)
+    # for key, value in index_to_pos_dicts[2].items():
+    #     if value == 239:
+    #         r2 = key
+    #         print(r2)
+    # for col in refined:
+    #     if structures[0].name in col and structures[2].name in col:
+    #         if col[structures[0].name] == r0 and col[structures[2].name] == r2:
+    #             print("FOUND IT")
+    #             print(col)
+    # print(refined)
+    # print(splited)
+    # centers = [centers[i] for i in sorted_indices]
+    # cluster_score = [cluster_score[i] for i in sorted_indices]
+    # index_list = [index_list[i] for i in sorted_indices]
+    # splited = [splited[i] for i in sorted_indices]
 
     return refined
 
+def check_alignment_order(data, d1, d2):
+    for k1, v1 in d1.items():
+        for k2, v2 in d2.items():
+            l, h = neighbors_by_key(data, k1, v1, k2)
+            if l is not None:
+                if v2 < l[k2]:
+                    return False
+            if h is not None:
+                if v2 > h[k2]:
+                    return False
+    return True
+            
+
+def neighbors_by_key(data, k1, v1, k2):
+    """
+    Find nearest dicts below and above v1 using d[k1] as the value.
+    Only dicts containing BOTH k1 and k2 are considered.
+
+    Returns: (lower_dict, higher_dict)
+    """
+    lower = higher = None
+    best_low_gap = best_high_gap = float("inf")
+
+    for d in data:
+        if k1 in d and k2 in d:
+            x = d[k1]
+            if x < v1:
+                if (v1 - x) < best_low_gap:
+                    best_low_gap = v1 - x
+                    lower = d
+            elif x > v1:
+                if (x - v1) < best_high_gap:
+                    best_high_gap = x - v1
+                    higher = d
+
+    return lower, higher
+
+
+
+def get_closest_center(i, coord, centers):
+    """Return the index of the closest center to coord, excluding center i."""
+    best_j = None
+    best_dist = float('inf')
+    for j, center in enumerate(centers):
+        if j == i:
+            continue
+        d = distance(coord, center)
+        if d < best_dist:
+            best_dist = d
+            best_j = j
+    return best_j, best_dist
+
+
+def get_structure_by_name(structures, struc_name):
+    for i, s in enumerate(structures):
+        if s.name == struc_name:
+            return i, s
+    raise ValueError(f"Structure {struc_name} not found.")
 
 
 def distance(coord1, coord2):

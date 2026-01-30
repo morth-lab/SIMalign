@@ -5,7 +5,7 @@ import pymol2
 
 from utils import foldseek_API_search, loading_structures_to_pymol, super_impose_structures, calculate_similarity_score, update_alignment_in_pymol, get_neighborAA, finding_hotspots, save_hotspot, format_pymol, save_scores_as_json
 
-from utils import run_muscle, write_fasta, alignment_to_dict, update_msa, log_message
+from utils import run_muscle, write_fasta, alignment_to_dict, update_msa, log_message, select_hotspots_in_pymol
 
 from models import StructureFile, Structure
 
@@ -54,7 +54,12 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
 
 
         run_muscle(sequences_path, alignment_file_name, muscle_path, log_file_path)
+        run_muscle(sequences_path, os.path.join(result_dir,"alignment_no_gap.aln"), muscle_path, log_file_path)
         log_message(log_file_path, "Alignment file created: "+alignment_file_name)
+
+        log_message(log_file_path, "Calculating similarity scores...")
+        # Seqeunce alignment based on superimposition function from PyMOL
+        structures, align = calculate_similarity_score(structures, max_dist, cmd, BLOSUM)
 
         align_dict = alignment_to_dict(alignment_file_name, structures, alignment_format="fasta")
         log_message(log_file_path, "Updating MSA...")
@@ -65,9 +70,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         update_alignment_in_pymol(align_dict, cmd, structure_names)
         cmd.save(alignment_file_name, selection="aln")
 
-        log_message(log_file_path, "Calculating similarity scores...")
-        # Seqeunce alignment based on superimposition function from PyMOL
-        structures, align = calculate_similarity_score(structures, max_dist, cmd, BLOSUM, alignment_file_name)
+
 
         save_scores_as_json(structures, result_dir)
 
@@ -81,15 +84,18 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         # Finding single mutations
         hotspot_list_single = finding_hotspots(neighborAA_list, align, structures, core, core_index, only_core, mode=1)
             
-        hotspot_list = hotspot_list_single + hotspot_list_double
-        
 
-        save_hotspot(hotspot_list_double, result_dir, structures, mode=2)
-        save_hotspot(hotspot_list_single, result_dir, structures, mode=1)
+
+        double_hotspots = save_hotspot(hotspot_list_double, result_dir, structures, mode=2)
+        single_hotspots = save_hotspot(hotspot_list_single, result_dir, structures, mode=1)
 
 
         log_message(log_file_path, "Formatting PyMOL session...")
-        format_pymol(structures, hotspot_list, cmd, log_file_path)
+        format_pymol(structures, cmd, log_file_path)
+
+        select_hotspots_in_pymol(single_hotspots, structures, align, cmd, mode=1)
+        select_hotspots_in_pymol(double_hotspots, structures, align, cmd, mode=2)
+
   
         cmd.save(os.path.join(result_dir,"SIMalign_"+job_key+".pse"))
  
