@@ -1079,9 +1079,10 @@ def cluster_column(col, structures, threshold, index_to_pos_dicts):
     clusters = []
     centers = []  # numpy arrays of current cluster centroids
 
-    for struc_name, atom_index in col.items():
+    for j, (struc_name, atom_index) in enumerate(col.items()):
         atom = get_atom(structures, struc_name, atom_index, index_to_pos_dicts)
         coord = atom.coord
+        # i, struc = get_structure_by_name(structures, struc_name)
 
         # Find nearest cluster center
         best_i = None
@@ -1094,16 +1095,22 @@ def cluster_column(col, structures, threshold, index_to_pos_dicts):
 
         # Try to add to the best cluster (complete linkage)
         if best_i is not None and best_dist <= threshold:
-            candidate = clusters[best_i]
-            if all(
-                distance(coord, get_atom(structures, s, a, index_to_pos_dicts).coord) <= threshold
-                for s, a in candidate
-            ):
-                candidate.append((struc_name, atom_index))
-                # Update centroid
-                all_coords = [get_atom(structures, s, a, index_to_pos_dicts).coord for s, a in candidate]
-                centers[best_i] = np.mean(np.array(all_coords), axis=0)
-                continue
+            for struc in structures[:j]:
+                best_q_dist = float('inf')
+                q_dist = struc.cKDTree.query(coord)[0]
+                if q_dist < best_q_dist:
+                    best_q_dist = q_dist
+            if best_dist < best_q_dist*2:
+                candidate = clusters[best_i]
+                if all(
+                    distance(coord, get_atom(structures, s, a, index_to_pos_dicts).coord) <= threshold
+                    for s, a in candidate
+                ):
+                    candidate.append((struc_name, atom_index))
+                    # Update centroid
+                    all_coords = [get_atom(structures, s, a, index_to_pos_dicts).coord for s, a in candidate]
+                    centers[best_i] = np.mean(np.array(all_coords), axis=0)
+                    continue
 
         # Otherwise start a new cluster
         clusters.append([(struc_name, atom_index)])
