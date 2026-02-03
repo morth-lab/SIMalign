@@ -1097,9 +1097,16 @@ def cluster_column(col, structures, threshold, index_to_pos_dicts):
         if best_i is not None and best_dist <= threshold:
             for struc in structures[:j]+structures[j+1:]:
                 best_q_dist = float('inf')
-                q_dist = struc.cKDTree.query(coord)[0]
+                q_pair = struc.cKDTree.query(coord)
+                q_dist = q_pair[0]
                 if q_dist < best_q_dist:
                     best_q_dist = q_dist
+                    best_q_index = q_pair[1]
+                    best_struc = struc
+            _, ref_struc = get_structure_by_name(structures, struc_name)
+            q_dist_reversed = ref_struc.cKDTree.query(best_struc.model.atom[best_q_index].coord)[0]
+            if q_dist_reversed < best_q_dist:
+                best_q_dist = q_dist_reversed
             if best_dist < best_q_dist*1.5:
                 candidate = clusters[best_i]
                 if all(
