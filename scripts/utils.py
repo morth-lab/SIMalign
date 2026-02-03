@@ -1100,7 +1100,7 @@ def cluster_column(col, structures, threshold, index_to_pos_dicts):
                 q_dist = struc.cKDTree.query(coord)[0]
                 if q_dist < best_q_dist:
                     best_q_dist = q_dist
-            if best_dist < best_q_dist*2:
+            if best_dist < best_q_dist*1.8:
                 candidate = clusters[best_i]
                 if all(
                     distance(coord, get_atom(structures, s, a, index_to_pos_dicts).coord) <= threshold
