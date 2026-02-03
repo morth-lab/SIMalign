@@ -1107,7 +1107,7 @@ def cluster_column(col, structures, threshold, index_to_pos_dicts):
             q_dist_reversed = ref_struc.cKDTree.query(best_struc.model.atom[best_q_index].coord)[0]
             if q_dist_reversed < best_q_dist:
                 best_q_dist = q_dist_reversed
-            if best_dist < best_q_dist*1.5:
+            if best_dist < best_q_dist*1.8:
                 candidate = clusters[best_i]
                 if all(
                     distance(coord, get_atom(structures, s, a, index_to_pos_dicts).coord) <= threshold
