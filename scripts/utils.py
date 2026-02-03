@@ -1091,11 +1091,11 @@ def cluster_column(col, structures, threshold, index_to_pos_dicts):
             d = distance(coord, center)
             if d < best_dist:
                 best_dist = d
-                best_i = i
+                best_i = i 
 
         # Try to add to the best cluster (complete linkage)
         if best_i is not None and best_dist <= threshold:
-            for struc in structures[:j]:
+            for struc in structures[:j]+structures[j+1:]:
                 best_q_dist = float('inf')
                 q_dist = struc.cKDTree.query(coord)[0]
                 if q_dist < best_q_dist:
