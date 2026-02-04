@@ -54,7 +54,7 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
 
 
         run_muscle(sequences_path, alignment_file_name, muscle_path, log_file_path)
-        run_muscle(sequences_path, os.path.join(result_dir,"alignment_no_gap.aln"), muscle_path, log_file_path)
+        # run_muscle(sequences_path, os.path.join(result_dir,"alignment_no_gap.aln"), muscle_path, log_file_path)
         log_message(log_file_path, "Alignment file created: "+alignment_file_name)
 
         log_message(log_file_path, "Calculating similarity scores...")

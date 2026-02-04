@@ -1,3 +1,4 @@
+from pymol import cmd
 from random import randrange
 from Bio.PDB import PDBParser
 from Bio.PDB.MMCIFParser import MMCIFParser
@@ -193,6 +194,25 @@ def run_muscle(input_fasta, output_fasta, muscle_cmd, log_file_path):
 
 # PyMol functions
 
+def remove_alt_conformations(cmd, obj_name, keep_alts=("", "A")):
+    keep_expr = "+".join([a if a != "" else "''" for a in keep_alts])
+    # remove atoms whose alt is not in keep_alts
+    cmd.remove(f"{obj_name} and not alt {keep_expr}")
+
+    canon = "ALA ARG ASN ASP CYS GLN GLU GLY HIS ILE LEU LYS MET PHE PRO SER THR TRP TYR VAL".split()
+
+def canonicalize_resn(cmd):
+    mapping = {
+        "MSE":"MET","SEP":"SER","TPO":"THR","PTR":"TYR",
+        "HYP":"PRO","CSO":"CYS","CSD":"CYS","CME":"CYS",
+        "MLY":"LYS","M3L":"LYS","SEC":"CYS","PYL":"LYS"
+    }
+    for k, v in mapping.items():
+        cmd.alter(f"resn {k}", f"resn='{v}'")
+    cmd.sort()
+
+
+
 def loading_structures_to_pymol(structure_files,query,cmd,stored,log_file_path):
             
     cmd.reinitialize()
@@ -205,6 +225,7 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored,log_file_path):
         if name == "PDB":
             try:
                 cmd.fetch(name)
+                remove_alt_conformations(cmd, name, keep_alts=("", "A"))
                 log_message(log_file_path, f"\tFetched: {name}")
                 Structure(name,cmd,stored).validate_structure_format()
             except Exception as e:
@@ -226,11 +247,13 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored,log_file_path):
             try:
                 # Load the structure in PyMOL using the normalized path and name
                 cmd.load(normalized_path, name)
+                remove_alt_conformations(cmd, name, keep_alts=("", "A"))
                 log_message(log_file_path, f"\tLoaded: {name} from {normalized_path}")
                 Structure(name,cmd,stored).validate_structure_format()
             except Exception as e:
-                print(f'<p style="color:red;"><b>ERROR:</b> {normalized_path} could not be loaded in PyMOL.)</p>')
+                print(f'<p style="color:red;"><b>ERROR:</b> {normalized_path} could not be loaded in PyMOL.</p>')
 
+    canonicalize_resn(cmd)
     structures = []
     for struc in cmd.get_object_list():
         structures.append(Structure(struc,cmd,stored))
@@ -586,6 +609,7 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
                                             
                                     if len(resi_off_for_close) == 1:
                                         if resi_off_for_close[0] == ref_index:
+                                            # print(query_resi, align[0][ref_index])
                                             residue_to_mutate.add((query_resi, align[0][ref_index]))
                                             residue_to_mutate.add((index_to_resi(resi_off[0],align[0],structures[0].model.atom), align[0][resi_off[0]]))
                                             resi_list.append([(index_to_resi(ref_index,seq,template_atoms), seq[ref_index]),  (index_to_resi(resi_off[0],seq,template_atoms), seq[resi_off[0]])])
@@ -593,6 +617,8 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
                                         else:
                                             resi_list.append(["a"])
                                     elif len(resi_off_for_close) == 0:
+                                        # print(query_resi, align[0][ref_index],2)
+                                        # residue_to_mutate.add(((query_resi, align[0][ref_index]),(index_to_resi(resi_off[0],align[0],structures[0].model.atom), align[0][resi_off[0]])))
                                         residue_to_mutate.add((query_resi, align[0][ref_index]))
                                         residue_to_mutate.add((index_to_resi(resi_off[0],align[0],structures[0].model.atom), align[0][resi_off[0]]))
                                         resi_list.append([(index_to_resi(ref_index,seq,template_atoms), seq[ref_index]),  (index_to_resi(resi_off[0],seq,template_atoms), seq[resi_off[0]])])
@@ -602,13 +628,15 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
                                     resi_list.append(["c"])
                             else:
                                 resi_list.append(["d"])
+
+# -------------------------------------------------------------------------------------------------------
                     else:
                         resi_list.append(["e"])
                 else:
                     resi_list.append(["f"])
                 non_compatible_resi.append(non_compatible_tmpset)
                 # Add hotspot to hotspot list
-            if residue_to_mutate != set():
+            if len(residue_to_mutate) == mode:
                 hotspot_list.append([
                     residue_to_mutate,
                     resi_list,
@@ -1107,7 +1135,7 @@ def cluster_column(col, structures, threshold, index_to_pos_dicts):
             q_dist_reversed = ref_struc.cKDTree.query(best_struc.model.atom[best_q_index].coord)[0]
             if q_dist_reversed < best_q_dist:
                 best_q_dist = q_dist_reversed
-            if best_dist < best_q_dist*1.8:
+            if best_dist < best_q_dist*1.5:
                 candidate = clusters[best_i]
                 if all(
                     distance(coord, get_atom(structures, s, a, index_to_pos_dicts).coord) <= threshold

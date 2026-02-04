@@ -10,38 +10,34 @@ def threeletter2oneletter(resn: str) -> str:
         "LEU":"L","LYS":"K","MET":"M","PHE":"F","PRO":"P",
         "SER":"S","THR":"T","TRP":"W","TYR":"Y","VAL":"V",
 
-        # Common non-canonical / genetically encoded
-        "SEC":"U",  # selenocysteine
-        "PYL":"O",  # pyrrolysine
+        # # Very common crystallography substitution
+        # "MSE":"M",  # selenomethionine -> Met
 
-        # Very common crystallography substitution
-        "MSE":"M",  # selenomethionine -> Met
+        # # Histidine naming variants (Amber/CHARMM/protonation states)
+        # "HID":"H","HIE":"H","HIP":"H",
+        # "HSD":"H","HSE":"H","HSP":"H",
 
-        # Histidine naming variants (Amber/CHARMM/protonation states)
-        "HID":"H","HIE":"H","HIP":"H",
-        "HSD":"H","HSE":"H","HSP":"H",
+        # # Protonated acids (common in some forcefields)
+        # "ASH":"D",  # protonated Asp
+        # "GLH":"E",  # protonated Glu
 
-        # Protonated acids (common in some forcefields)
-        "ASH":"D",  # protonated Asp
-        "GLH":"E",  # protonated Glu
+        # # Cys variants (forcefield / disulfide annotations)
+        # "CYX":"C",  # disulfide-bonded cysteine often labeled CYX
+        # "CYM":"C",  # deprotonated cysteine
 
-        # Cys variants (forcefield / disulfide annotations)
-        "CYX":"C",  # disulfide-bonded cysteine often labeled CYX
-        "CYM":"C",  # deprotonated cysteine
+        # # Lys variants
+        # "LYN":"K",  # neutral lysine (deprotonated)
 
-        # Lys variants
-        "LYN":"K",  # neutral lysine (deprotonated)
+        # # Common phosphorylated residues (often used as residue names)
+        # "SEP":"S",  # phosphoserine
+        # "TPO":"T",  # phosphothreonine
+        # "PTR":"Y",  # phosphotyrosine
 
-        # Common phosphorylated residues (often used as residue names)
-        "SEP":"S",  # phosphoserine
-        "TPO":"T",  # phosphothreonine
-        "PTR":"Y",  # phosphotyrosine
-
-        # A few other common modified AA-like residues you may meet
-        "HYP":"P",  # hydroxyproline
-        "CSO":"C",  # cysteine sulfinic acid (often treated as C)
-        "CSD":"C",  # cysteine sulfinic/sulfonic variants (often treated as C)
-        "CSS":"C",  # cysteine-related variant
+        # # A few other common modified AA-like residues you may meet
+        # "HYP":"P",  # hydroxyproline
+        # "CSO":"C",  # cysteine sulfinic acid (often treated as C)
+        # "CSD":"C",  # cysteine sulfinic/sulfonic variants (often treated as C)
+        # "CSS":"C",  # cysteine-related variant
     }
 
     out = AA3_TO_AA1.get(resn.upper(), "X")  # X for unknown

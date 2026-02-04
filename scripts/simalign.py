@@ -52,7 +52,7 @@ def main():
         "-d",
         "--MAX_DISTANCE",
         type=int,
-        default=7,
+        default=5,
         help="Threshold distance for gap recognition. If an amino acid has more than this distance to the query structure, it is recognized as a gap."
     )
     parser.add_argument(
