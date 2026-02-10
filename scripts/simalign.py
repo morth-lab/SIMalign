@@ -2,7 +2,7 @@ import argparse
 import os
 from core import SIMalign
 import sys
-from utils import validate_structure_file, encrypt_key, create_output_dirs, log_message
+from utils import validate_structure_file, encrypt_key, create_output_dirs, log_message, detect_structure_format
 import shutil
 
 def main():
@@ -128,8 +128,12 @@ def main():
     # Change "0" extension to ".pdb" for web server
     if args.QUERY.endswith("0"):
         old_query_path = args.QUERY
-        args.QUERY = args.QUERY[:-1] + "pdb"
+        args.QUERY = detect_structure_format(old_query_path[:-1])
+        # args.QUERY = args.QUERY[:-1] + "pdb"
         new_query_path = args.QUERY
+        if new_query_path.endswith("0"):
+            print(f'<p style="color:red;"><b>ERROR:</b> Could not detect structure format for query file ({old_query_path}). Please make sure the file has a valid structure format extension (.pdb or .cif).</p>')
+            sys.exit(1)
         os.rename(old_query_path, new_query_path)
 
 
@@ -151,8 +155,13 @@ def main():
             for i, temp_file in enumerate(templates):
                 if temp_file.endswith("0"):
                     old_temp_file_path = temp_file
-                    temp_file = temp_file[:-1] + "pdb"
-                    new_temp_file_path = temp_file
+                    new_temp_file_path = detect_structure_format(old_temp_file_path[:-1])
+                    temp_file = new_temp_file_path
+                    if new_temp_file_path.endswith("0"):
+                        templates.pop(i)
+                        print(f'<p style="color:orange;"><b>WARNING:</b> Could not detect structure format for {old_temp_file_path}. This file will be skipped.</p>')
+                        continue
+                    # new_temp_file_path = temp_file
                     os.rename(old_temp_file_path, new_temp_file_path)
                     templates[i] = new_temp_file_path
         else:

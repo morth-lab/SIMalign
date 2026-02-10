@@ -17,6 +17,22 @@ from Bio import AlignIO
 
 ## Main functions
 
+def detect_structure_format(path):
+    with open(path, "r") as f:
+        for _ in range(200):  # read first 200 lines
+            line = f.readline()
+            if not line:
+                break
+            line = line.strip()
+
+            if line.startswith("data_") or "_atom_site." in line:
+                return path+"cif"
+            if line.startswith(("ATOM", "HETATM", "HEADER", "REMARK", "MODEL")):
+                return path+"pdb"
+
+    return path+"0"
+
+
 def log_message(log_file_path,message):
     with open(log_file_path, "a") as log_file:
         log_file.write(message + "\n")
