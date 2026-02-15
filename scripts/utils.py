@@ -404,7 +404,7 @@ def bigger_AA(ref_AA,target_AA,if_refAA_and_targetAA_are_the_same=False):
         return True
     elif ref_AA == "F" and target_AA == "Y":
         return True
-    elif ref_AA == "L" and target_AA in {"F","Y"}:
+    elif ref_AA == "L" and target_AA in {"F","Y","W"}:
         return True
     elif ref_AA == "S" and target_AA in {"C","T"}:
         return True
@@ -432,11 +432,14 @@ def get_core(structures, cmd):
     :return: list of AA in conserved region
     """
     score_list = structures[0].score_list
+    # print("Score list:", score_list)
     med = median_40_percent(score_list)
+    # print("40 percent median score:", med)
     atoms = structures[0].model.atom
+    # print("Number of atoms in query structure:", len(atoms))
     # Get upper 60% median conserved AA
     for i, score in enumerate(score_list):
-        if score > med:
+        if score >= med:
             structures[0].conserved_AA.add(int(atoms[i].resi))
 
     # Add close AA within 6 AA to conserved_region
@@ -491,7 +494,11 @@ def get_neighborAA(structures, align, cmd, only_core):
     :param align: alignment
     :return: list of close AA
     """
+    # print("Getting neighbor AA list...")
+    # print(len(structures))
+    # print(len(align))
     core = get_core(structures, cmd)
+    # print("Core residues:", core)
     query_atoms = cmd.get_model(structures[0].side_chains).atom
     query_kd = cKDTree([atom.coord for atom in query_atoms])
 
@@ -576,7 +583,7 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
                 
                 # Check that template AA is different than query AA and not gab
                 if template_AA != "-" and template_AA != threeletter2oneletter(query_resn):
-                    
+
                     # find atom that corresponds to template_AA
                     for template_atom in template_atoms:
                         if int(template_atom.resi) == index_to_resi(ref_index,seq,template_atoms):
@@ -590,10 +597,16 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
                         else:
                             neighbor_idx = index_to_pos[j][ref_index]
                         for closeAA in neighborAA_list[j][neighbor_idx]:
-                            if not bigger_AA(seq[closeAA],align[0][closeAA],if_refAA_and_targetAA_are_the_same=True):
-                                resi_off.append(closeAA)
-                            else:
+                            if bigger_AA(align[0][closeAA],seq[closeAA],if_refAA_and_targetAA_are_the_same=True):
                                 non_compatible_tmpset.add(index_to_resi(closeAA,align[0],structures[0].model.atom))
+                            else:
+                                resi_off.append(closeAA)
+                            # if bigger_AA(seq[closeAA],align[0][closeAA]):
+                            #     resi_off.append(closeAA)
+                            # else:
+                            #     non_compatible_tmpset.add(index_to_resi(closeAA,align[0],structures[0].model.atom))
+                            #     if len(resi_off) == 0:
+                            #         print(query_resi, "q:", align[0][closeAA], "t:", seq[closeAA],"resi:", index_to_resi(closeAA,align[0],structures[0].model.atom), "template:", structures[j+1].name)
 
 
                         # If searching for single mutations
@@ -602,7 +615,7 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
                             if len(resi_off) == 0:
                                 residue_to_mutate.add((query_resi, align[0][ref_index]))
                                 # hotspot_flag = True
-                                resi_list.append([(index_to_resi(ref_index,seq,template_atoms), seq[ref_index])])
+                                resi_list.append([(query_resi, seq[ref_index])])
                             else:
                                 resi_list.append(["g"])
 
@@ -618,17 +631,21 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
                                         neighbor_idx_off = index_to_pos[j][resi_off[0]]
 
                                     for close_to_close in neighborAA_list[j][neighbor_idx_off]:
-                                        if not bigger_AA(seq[close_to_close],align[0][close_to_close],if_refAA_and_targetAA_are_the_same=True):
-                                            resi_off_for_close.append(close_to_close)
-                                        else:
+                                        if bigger_AA(align[0][close_to_close],seq[close_to_close],if_refAA_and_targetAA_are_the_same=True):
                                             non_compatible_tmpset.add(index_to_resi(close_to_close,align[0],structures[0].model.atom))
+                                        else:
+                                            resi_off_for_close.append(close_to_close)
+                                        # if bigger_AA(seq[close_to_close],align[0][close_to_close]):
+                                        #     resi_off_for_close.append(close_to_close)
+                                        # else:
+                                        #     non_compatible_tmpset.add(index_to_resi(close_to_close,align[0],structures[0].model.atom))
                                             
                                     if len(resi_off_for_close) == 1:
                                         if resi_off_for_close[0] == ref_index:
                                             # print(query_resi, align[0][ref_index])
                                             residue_to_mutate.add((query_resi, align[0][ref_index]))
                                             residue_to_mutate.add((index_to_resi(resi_off[0],align[0],structures[0].model.atom), align[0][resi_off[0]]))
-                                            resi_list.append([(index_to_resi(ref_index,seq,template_atoms), seq[ref_index]),  (index_to_resi(resi_off[0],seq,template_atoms), seq[resi_off[0]])])
+                                            resi_list.append([(query_resi, seq[ref_index]),  (index_to_resi(resi_off[0],align[0],structures[0].model.atom), seq[resi_off[0]])])
 
                                         else:
                                             resi_list.append(["a"])
@@ -637,7 +654,7 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
                                         # residue_to_mutate.add(((query_resi, align[0][ref_index]),(index_to_resi(resi_off[0],align[0],structures[0].model.atom), align[0][resi_off[0]])))
                                         residue_to_mutate.add((query_resi, align[0][ref_index]))
                                         residue_to_mutate.add((index_to_resi(resi_off[0],align[0],structures[0].model.atom), align[0][resi_off[0]]))
-                                        resi_list.append([(index_to_resi(ref_index,seq,template_atoms), seq[ref_index]),  (index_to_resi(resi_off[0],seq,template_atoms), seq[resi_off[0]])])
+                                        resi_list.append([(query_resi, seq[ref_index]),  (index_to_resi(resi_off[0],align[0],structures[0].model.atom), seq[resi_off[0]])])
                                     else:
                                         resi_list.append(["b"])
                                 else:
@@ -662,6 +679,12 @@ def finding_hotspots(neighborAA_list, align, structures, core, core_index, only_
     return hotspot_list
 
 
+
+def get_score_by_resi(score_list, resi, atoms):
+    for i, atom in enumerate(atoms):
+        if int(atom.resi) == int(resi):
+            return score_list[i]
+    return None
 
 import os
 
@@ -704,7 +727,11 @@ tr:hover{{background:rgba(255,255,255,.06)}}
 
         rows = []  # (avg_score, wt_txt, key, structs, neigh)
 
+        # sort WT-list and mut-list by residue number for better readability
+
         for wt_list, mut_lists, neigh_lists in hotspot_list:
+            wt_list = list(wt_list)
+            wt_list.sort(key=lambda x: int(x[0]))
             wt_pos = [resi for resi, _ in wt_list]
             wt_txt = ", ".join(f"{r}{a}" for r, a in wt_list)
 
@@ -712,13 +739,15 @@ tr:hover{{background:rgba(255,255,255,.06)}}
             for i, mlist in enumerate(mut_lists):
                 if isinstance(mlist[0], str):
                     continue
+
+                mlist.sort(key=lambda x: int(x[0]))  # sort by residue number
                 key = "|".join(x[1] for x in mlist)
                 uniq.setdefault(key, ([], set()))
                 uniq[key][0].append(structures[i + 1].name)
                 uniq[key][1].update(neigh_lists[i])
 
             for key, (structs, neigh) in uniq.items():
-                vals = [scores[p - 1] for p in wt_pos]
+                vals = [get_score_by_resi(scores, resi, structures[0].model.atom) for resi in wt_pos]
                 avg = sum(vals) / len(vals) if vals else 0.0
                 rows.append((avg, wt_txt, key, structs, neigh))
 

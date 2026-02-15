@@ -77,6 +77,9 @@ def SIMalign(query, job_key, result_dir, tmp_dir="tmp", templates=None, homology
         log_message(log_file_path, "Finding hotspots...")
         align = AlignIO.read(alignment_file_name,"clustal")
         neighborAA_list, core, core_index = get_neighborAA(structures, align, cmd, only_core)
+        # print("Neighbor AA list:", neighborAA_list)
+        # print("Core:", core)
+        # print("Core index:", core_index)
             
         # Finding double mutations
         hotspot_list_double = finding_hotspots(neighborAA_list, align, structures, core, core_index, only_core, mode=2)
