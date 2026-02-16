@@ -26,11 +26,11 @@ def detect_structure_format(path):
             line = line.strip()
 
             if line.startswith("data_") or "_atom_site." in line:
-                return path+"cif"
+                return path[:-1]+"cif"
             if line.startswith(("ATOM", "HETATM", "HEADER", "REMARK", "MODEL")):
-                return path+"pdb"
+                return path[:-1]+"pdb"
 
-    return path+"0"
+    return path
 
 
 def log_message(log_file_path,message):
@@ -245,7 +245,7 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored,log_file_path):
                 log_message(log_file_path, f"\tFetched: {name}")
                 Structure(name,cmd,stored).validate_structure_format()
             except Exception as e:
-                print(f'<p style="color:red;"><b>ERROR:</b> {name} could not be fetched to PyMOL</p>')
+                print(f'<p style="color:orange;"><b>WARNING:</b> {name} could not be fetched to PyMOL</p>')
 
         # Loading structures from paths
         else:
@@ -274,6 +274,9 @@ def loading_structures_to_pymol(structure_files,query,cmd,stored,log_file_path):
     for struc in cmd.get_object_list():
         structures.append(Structure(struc,cmd,stored))
 
+    if len(structures) < 3:
+        print(f'<p style="color:red;"><b>ERROR:</b> Less than 3 valid structures were loaded into PyMOL. Please check the input files and try again.</p>')
+        sys.exit(1)
     return structures
 
 

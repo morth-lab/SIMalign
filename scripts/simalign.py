@@ -126,9 +126,9 @@ def main():
     args = parser.parse_args()
 
     # Change "0" extension to ".pdb" for web server
-    if args.QUERY.endswith("0"):
+    if args.QUERY.endswith(".0"):
         old_query_path = args.QUERY
-        args.QUERY = detect_structure_format(old_query_path[:-1])
+        args.QUERY = detect_structure_format(old_query_path)
         # args.QUERY = args.QUERY[:-1] + "pdb"
         new_query_path = args.QUERY
         if new_query_path.endswith("0"):
@@ -151,28 +151,33 @@ def main():
             sys.exit(1)
         elif args.TEMPLATES is not None:
             templates = args.TEMPLATES
-            # Change "0" extension to ".pdb" for web server
-            for i, temp_file in enumerate(templates):
-                if temp_file.endswith("0"):
-                    old_temp_file_path = temp_file
-                    new_temp_file_path = detect_structure_format(old_temp_file_path[:-1])
-                    temp_file = new_temp_file_path
-                    if new_temp_file_path.endswith("0"):
-                        templates.pop(i)
-                        print(f'<p style="color:orange;"><b>WARNING:</b> Could not detect structure format for {old_temp_file_path}. This file will be skipped.</p>')
-                        continue
-                    # new_temp_file_path = temp_file
-                    os.rename(old_temp_file_path, new_temp_file_path)
-                    templates[i] = new_temp_file_path
         else:
             templates = [os.path.join(args.TEMPLATES_DIR, temp_file) for temp_file in os.listdir(args.TEMPLATES_DIR)]
         if len(templates) < 2:
             print(f'<p style="color:red;"><b>ERROR:</b> Please provide 2 or more template files when using user-specified homology search method.</p>')
             sys.exit(1)
-        for temp_file in templates:
+
+        # Change "0" extension to ".pdb" for web server
+        for i, temp_file in enumerate(templates):
+            print(temp_file)
+            if temp_file.endswith(".0"):
+                old_temp_file_path = temp_file
+                new_temp_file_path = detect_structure_format(old_temp_file_path)
+                temp_file = new_temp_file_path
+                print(f"Detected template file format for {old_temp_file_path}: {new_temp_file_path}")
+                if new_temp_file_path.endswith("0"):
+                    templates.pop(i)
+                    print(f'<p style="color:orange;"><b>WARNING:</b> Could not detect structure format for {old_temp_file_path}. This file will be skipped.</p>')
+                    continue
+                # new_temp_file_path = temp_file
+                os.rename(old_temp_file_path, new_temp_file_path)
+                templates[i] = new_temp_file_path
             if not validate_structure_file(temp_file):
-                print(f'<p style="color:red;"><b>ERROR:</b> Could not open or read {temp_file}</p>')
-                sys.exit(1)
+                print(f'<p style="color:orange;"><b>WARNING:</b> Could not open or read {temp_file}</p>')
+                templates.remove(temp_file)
+        if len(templates) < 2:
+            print(f'<p style="color:red;"><b>ERROR:</b> After validating the template files, less than 2 valid template files remain. Please provide at least 2 valid template files.</p>')
+            sys.exit(1)
     else:
         templates = None
 
