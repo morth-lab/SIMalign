@@ -151,9 +151,11 @@ def main():
             sys.exit(1)
         elif args.TEMPLATES is not None:
             templates = args.TEMPLATES
+            
         else:
             templates = [os.path.join(args.TEMPLATES_DIR, temp_file) for temp_file in os.listdir(args.TEMPLATES_DIR)]
         if len(templates) < 2:
+            print(templates)
             print(f'<p style="color:red;"><b>ERROR:</b> Please provide 2 or more template files when using user-specified homology search method.</p>')
             sys.exit(1)
 
